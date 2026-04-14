@@ -468,9 +468,8 @@ export default function App() {
   }, [isAuthReady]);
 
   useEffect(() => {
-    if (isAuthReady && user && (user.email === "hussain5565@hotmail.com" || user.email === "admin")) {
-      initializeData();
-    }
+    // We removed automatic initializeData() to allow users to clear data permanently.
+    // Data can still be initialized manually via the settings button.
   }, [user, isAuthReady]);
 
   const averageProgress = manualAverageProgress !== null 
@@ -1825,35 +1824,79 @@ export default function App() {
                           </div>
                           <div className="flex-1 space-y-4 w-full">
                             <div className="space-y-2">
-                              <label className="text-[10px] font-bold text-slate-400 uppercase">رابط صورة الهيكل التنظيمي</label>
-                              <div className="flex gap-2">
-                                <input 
-                                  id="org-structure-url"
-                                  type="text" 
-                                  defaultValue={settings.orgStructureUrl}
-                                  placeholder="أدخل رابط الصورة هنا..."
-                                  className="flex-1 px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none font-bold text-sm"
-                                />
-                                <button 
-                                  onClick={async () => {
-                                    const input = document.getElementById('org-structure-url') as HTMLInputElement;
-                                    if (input.value) {
-                                      try {
-                                        setToast({ message: 'جاري تحديث الصورة...', type: 'success' });
-                                        const { error } = await supabase.from('excellence_settings').upsert({ id: 'general', orgStructureUrl: input.value });
-                                        if (error) throw error;
-                                        setSettings(prev => ({ ...prev, orgStructureUrl: input.value }));
-                                        setToast({ message: 'تم تحديث صورة الهيكل بنجاح', type: 'success' });
-                                      } catch (error) {
-                                        handleSupabaseError(error, OperationType.UPDATE, 'excellence_settings/general');
+                              <label className="text-[10px] font-bold text-slate-400 uppercase">تحديث صورة الهيكل التنظيمي</label>
+                              <div className="flex flex-col gap-3">
+                                <div className="relative group">
+                                  <input 
+                                    type="file" 
+                                    accept="image/*"
+                                    onChange={async (e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) {
+                                        try {
+                                          setToast({ message: 'جاري رفع صورة الهيكل...', type: 'success' });
+                                          const fileExt = file.name.split('.').pop();
+                                          const fileName = `org-structure-${Date.now()}.${fileExt}`;
+                                          const filePath = `settings/${fileName}`;
+
+                                          const { error: uploadError } = await supabase.storage
+                                            .from('uploads')
+                                            .upload(filePath, file);
+                                          if (uploadError) throw uploadError;
+
+                                          const { data: { publicUrl } } = supabase.storage
+                                            .from('uploads')
+                                            .getPublicUrl(filePath);
+
+                                          const { error: dbError } = await supabase.from('excellence_settings').upsert({ 
+                                            id: 'general', 
+                                            orgStructureUrl: publicUrl 
+                                          });
+                                          if (dbError) throw dbError;
+
+                                          setSettings(prev => ({ ...prev, orgStructureUrl: publicUrl }));
+                                          setToast({ message: 'تم تحديث الهيكل بنجاح', type: 'success' });
+                                        } catch (error) {
+                                          handleSupabaseError(error, OperationType.UPDATE, 'excellence_settings');
+                                        }
                                       }
-                                    }
-                                  }}
-                                  className="px-6 py-2 bg-madrasati-green text-white rounded-lg font-bold hover:bg-emerald-700 transition-all text-sm flex items-center gap-2"
-                                >
-                                  <CheckCircle2 size={16} />
-                                  حفظ الرابط
-                                </button>
+                                    }}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                  />
+                                  <div className="flex items-center justify-center gap-2 px-6 py-4 border-2 border-dashed border-slate-200 rounded-xl hover:border-madrasati-green hover:bg-emerald-50 transition-all">
+                                    <UploadCloud className="text-slate-400 group-hover:text-madrasati-green" size={24} />
+                                    <span className="text-sm font-bold text-slate-500 group-hover:text-madrasati-green">اختر صورة جديدة للهيكل</span>
+                                  </div>
+                                </div>
+                                
+                                <div className="flex gap-2">
+                                  <input 
+                                    id="org-structure-url"
+                                    type="text" 
+                                    defaultValue={settings.orgStructureUrl}
+                                    placeholder="أو أدخل رابط الصورة هنا..."
+                                    className="flex-1 px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none font-bold text-sm"
+                                  />
+                                  <button 
+                                    onClick={async () => {
+                                      const input = document.getElementById('org-structure-url') as HTMLInputElement;
+                                      if (input.value) {
+                                        try {
+                                          setToast({ message: 'جاري تحديث الصورة...', type: 'success' });
+                                          const { error } = await supabase.from('excellence_settings').upsert({ id: 'general', orgStructureUrl: input.value });
+                                          if (error) throw error;
+                                          setSettings(prev => ({ ...prev, orgStructureUrl: input.value }));
+                                          setToast({ message: 'تم تحديث صورة الهيكل بنجاح', type: 'success' });
+                                        } catch (error) {
+                                          handleSupabaseError(error, OperationType.UPDATE, 'excellence_settings/general');
+                                        }
+                                      }
+                                    }}
+                                    className="px-6 py-2 bg-madrasati-green text-white rounded-lg font-bold hover:bg-emerald-700 transition-all text-sm flex items-center gap-2"
+                                  >
+                                    حفظ الرابط
+                                  </button>
+                                </div>
                               </div>
                               <p className="text-[10px] text-slate-400">
                                 * ملاحظة: يرجى استخدام روابط صور مباشرة (تنتهي بـ .jpg أو .png) أو روابط من Google Drive (مشاركة عامة).
