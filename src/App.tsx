@@ -146,32 +146,8 @@ const Login = ({ onLogin, setUser }: { onLogin: () => void, setUser: (user: any)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [adminPass, setAdminPass] = useState('');
-  const [showPassLogin, setShowPassLogin] = useState(false);
 
   const isPlaceholder = supabase.auth.getSession === undefined || (import.meta.env.VITE_SUPABASE_URL?.includes('placeholder'));
-
-  const handleGoogleLogin = async () => {
-    if (isPlaceholder) {
-      setError('يرجى ضبط إعدادات VITE_SUPABASE_URL في Settings أولاً.');
-      return;
-    }
-    setLoading(true);
-    setError('');
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: window.location.origin
-        }
-      });
-      if (error) throw error;
-    } catch (err: any) {
-      console.error("Login error:", err);
-      setError('حدث خطأ أثناء تسجيل الدخول. يرجى التأكد من إعدادات Supabase.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handlePasswordLogin = () => {
     // Simple fallback for development/preview environment
@@ -211,53 +187,22 @@ const Login = ({ onLogin, setUser }: { onLogin: () => void, setUser: (user: any)
         </div>
       )}
 
-      {!showPassLogin ? (
-        <div className="space-y-4">
-          <button 
-            onClick={handleGoogleLogin}
-            disabled={loading || isPlaceholder}
-            className="w-full py-4 bg-white border-2 border-slate-100 text-slate-700 rounded-2xl font-bold hover:bg-slate-50 hover:border-emerald-200 transition-all flex items-center justify-center gap-3 shadow-sm active:scale-[0.98] disabled:opacity-50"
-          >
-            {loading ? (
-              <div className="w-5 h-5 border-2 border-slate-300 border-t-emerald-600 rounded-full animate-spin" />
-            ) : (
-              <>
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-5 h-5" />
-                <span>تسجيل الدخول بواسطة Google</span>
-              </>
-            )}
-          </button>
-          
-          <button 
-            onClick={() => setShowPassLogin(true)}
-            className="text-xs font-bold text-slate-400 hover:text-madrasati-green transition-colors"
-          >
-            أو الدخول بواسطة كلمة مرور المسؤول
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <input 
-            type="password"
-            placeholder="كلمة مرور المسؤول"
-            value={adminPass}
-            onChange={(e) => setAdminPass(e.target.value)}
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-madrasati-green outline-none text-center font-bold"
-          />
-          <button 
-            onClick={handlePasswordLogin}
-            className="w-full py-4 bg-madrasati-green text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg"
-          >
-            دخول
-          </button>
-          <button 
-            onClick={() => setShowPassLogin(false)}
-            className="text-xs font-bold text-slate-400 hover:text-rose-500 transition-colors"
-          >
-            إلغاء
-          </button>
-        </div>
-      )}
+      <div className="space-y-4">
+        <input 
+          type="password"
+          placeholder="كلمة مرور المسؤول"
+          value={adminPass}
+          onChange={(e) => setAdminPass(e.target.value)}
+          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-madrasati-green outline-none text-center font-bold"
+        />
+        <button 
+          onClick={handlePasswordLogin}
+          disabled={loading}
+          className="w-full py-4 bg-madrasati-green text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg disabled:opacity-50"
+        >
+          {loading ? "جاري الدخول..." : "دخول"}
+        </button>
+      </div>
       
       <p className="mt-8 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
         نظام الإدارة المدرسية الموحد
@@ -874,15 +819,32 @@ export default function App() {
     }
   };
 
-  const handleAddReport = async (name: string, password: string) => {
+  const handleAddReport = async (name: string, password: string, file: File) => {
     try {
+      setToast({ message: 'جاري رفع التقرير...', type: 'success' });
+      
+      const fileExt = file.name.split('.').pop();
+      const fileName = `report-${Date.now()}.${fileExt}`;
+      const filePath = `reports/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('uploads')
+        .upload(filePath, file);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('uploads')
+        .getPublicUrl(filePath);
+
       const { error } = await supabase.from('excellence_reports').insert({
         name,
         password,
         date: new Date().toISOString().split('T')[0],
-        url: `https://picsum.photos/seed/${Math.random()}/800/600` // Placeholder for actual file upload
+        url: publicUrl,
+        file_path: filePath
       });
       if (error) throw error;
+      setToast({ message: 'تمت إضافة التقرير بنجاح', type: 'success' });
     } catch (error) {
       handleSupabaseError(error, OperationType.CREATE, 'excellence_reports');
     }
@@ -890,8 +852,20 @@ export default function App() {
 
   const handleDeleteReport = async (id: string) => {
     try {
+      setToast({ message: 'جاري حذف التقرير...', type: 'success' });
+      
+      // 1. Get file path
+      const { data: reportInfo } = await supabase.from('excellence_reports').select('file_path').eq('id', id).single();
+      
+      // 2. Delete from Storage
+      if (reportInfo?.file_path) {
+        await supabase.storage.from('uploads').remove([reportInfo.file_path]);
+      }
+
+      // 3. Delete from DB
       const { error } = await supabase.from('excellence_reports').delete().eq('id', id);
       if (error) throw error;
+      setToast({ message: 'تم حذف التقرير بنجاح', type: 'success' });
     } catch (error) {
       handleSupabaseError(error, OperationType.DELETE, `excellence_reports/${id}`);
     }
@@ -1183,7 +1157,7 @@ export default function App() {
                         </div>
                         <div className="text-center md:text-right">
                           <h4 className="text-2xl font-black text-madrasati-dark">أ. وليد العبدلي</h4>
-                          <p className="text-sm text-slate-500 font-bold mt-2">المشرف العام على أعمال اللجنة والمتابعة الميدانية</p>
+                          <p className="text-sm text-slate-500 font-bold mt-2">المشرف العام على أعمال اللجنة </p>
                           <div className="mt-4 flex items-center justify-center md:justify-end gap-2 text-madrasati-green">
                             <CheckCircle2 size={18} />
                             <span className="text-xs font-bold">مجمع سعد بن عبادة التعليمي</span>
@@ -1708,7 +1682,7 @@ export default function App() {
                         <h3 className="font-bold text-slate-700">إدارة التقارير المحمية</h3>
                       </div>
                       <div className="p-8">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
                           <div className="space-y-2">
                             <label className="text-[10px] font-bold text-slate-400 uppercase">اسم التقرير</label>
                             <input 
@@ -1727,20 +1701,45 @@ export default function App() {
                               className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none font-bold"
                             />
                           </div>
-                          <div className="flex items-end">
+                          <div className="md:col-span-2 space-y-2">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase">ملف التقرير</label>
+                            <div className="relative group">
+                              <input 
+                                id="new-report-file"
+                                type="file" 
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  const label = document.getElementById('file-label');
+                                  if (file && label) label.innerText = file.name;
+                                }}
+                              />
+                              <div className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-slate-200 rounded-xl hover:border-madrasati-green hover:bg-emerald-50 transition-all">
+                                <UploadCloud className="text-slate-400" size={20} />
+                                <span id="file-label" className="text-sm font-bold text-slate-500">اختر ملف التقرير</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="md:col-span-2">
                             <button 
                               onClick={() => {
                                 const nameEl = document.getElementById('new-report-name') as HTMLInputElement;
                                 const passEl = document.getElementById('new-report-password') as HTMLInputElement;
-                                if (nameEl.value && passEl.value) {
-                                  handleAddReport(nameEl.value, passEl.value);
+                                const fileEl = document.getElementById('new-report-file') as HTMLInputElement;
+                                const file = fileEl.files?.[0];
+                                
+                                if (nameEl.value && passEl.value && file) {
+                                  handleAddReport(nameEl.value, passEl.value, file);
                                   nameEl.value = '';
                                   passEl.value = '';
+                                  fileEl.value = '';
+                                  const label = document.getElementById('file-label');
+                                  if (label) label.innerText = 'اختر ملف التقرير';
                                 } else {
-                                  alert('يرجى إدخال الاسم وكلمة المرور');
+                                  alert('يرجى إدخال الاسم وكلمة المرور واختيار ملف');
                                 }
                               }}
-                              className="w-full bg-madrasati-green text-white px-4 py-2 rounded-lg font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+                              className="w-full bg-madrasati-green text-white px-4 py-3 rounded-lg font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
                             >
                               <Plus size={18} />
                               إضافة تقرير محمي
@@ -1868,38 +1867,9 @@ export default function App() {
                                     <span className="text-sm font-bold text-slate-500 group-hover:text-madrasati-green">اختر صورة جديدة للهيكل</span>
                                   </div>
                                 </div>
-                                
-                                <div className="flex gap-2">
-                                  <input 
-                                    id="org-structure-url"
-                                    type="text" 
-                                    defaultValue={settings.orgStructureUrl}
-                                    placeholder="أو أدخل رابط الصورة هنا..."
-                                    className="flex-1 px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none font-bold text-sm"
-                                  />
-                                  <button 
-                                    onClick={async () => {
-                                      const input = document.getElementById('org-structure-url') as HTMLInputElement;
-                                      if (input.value) {
-                                        try {
-                                          setToast({ message: 'جاري تحديث الصورة...', type: 'success' });
-                                          const { error } = await supabase.from('excellence_settings').upsert({ id: 'general', orgStructureUrl: input.value });
-                                          if (error) throw error;
-                                          setSettings(prev => ({ ...prev, orgStructureUrl: input.value }));
-                                          setToast({ message: 'تم تحديث صورة الهيكل بنجاح', type: 'success' });
-                                        } catch (error) {
-                                          handleSupabaseError(error, OperationType.UPDATE, 'excellence_settings/general');
-                                        }
-                                      }
-                                    }}
-                                    className="px-6 py-2 bg-madrasati-green text-white rounded-lg font-bold hover:bg-emerald-700 transition-all text-sm flex items-center gap-2"
-                                  >
-                                    حفظ الرابط
-                                  </button>
-                                </div>
                               </div>
                               <p className="text-[10px] text-slate-400">
-                                * ملاحظة: يرجى استخدام روابط صور مباشرة (تنتهي بـ .jpg أو .png) أو روابط من Google Drive (مشاركة عامة).
+                                * ملاحظة: سيتم حفظ الصورة في مساحة التخزين الخاصة بك.
                               </p>
                             </div>
                           </div>
