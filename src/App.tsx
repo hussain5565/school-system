@@ -635,6 +635,24 @@ export default function App() {
                 fill={getPerformanceStatus(normalizedValue).hex}
               />
             </motion.g>
+
+            {/* Central Value Display */}
+            <text
+              x={centerX}
+              y={centerY - 10}
+              textAnchor="middle"
+              className="fill-madrasati-dark font-black text-3xl"
+            >
+              {normalizedValue}%
+            </text>
+            <text
+              x={centerX}
+              y={centerY + 10}
+              textAnchor="middle"
+              className="fill-slate-400 font-bold text-[8px] uppercase tracking-widest"
+            >
+              مستوى الإنجاز
+            </text>
           </svg>
         </div>
 
@@ -938,6 +956,41 @@ export default function App() {
     }
   };
 
+  const handleAddIndicator = async () => {
+    try {
+      setToast({ message: 'جاري إضافة مؤشر جديد...', type: 'success' });
+      const newInd = {
+        title: "مؤشر جديد",
+        initiative: "مبادرة جديدة",
+        description: "وصف المؤشر الجديد",
+        progress: 0,
+        color: "text-madrasati-green",
+        bgColor: "bg-madrasati-green/10"
+      };
+      const { data, error } = await supabase.from('excellence_indicators').insert(newInd).select().single();
+      if (error) throw error;
+      if (data) {
+        setIndicators(prev => [...prev, { ...data, docId: data.id, icon: Target }]);
+      }
+      setToast({ message: 'تم إضافة المؤشر بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.CREATE, 'excellence_indicators');
+    }
+  };
+
+  const handleDeleteIndicator = async (id: string) => {
+    if (!confirm('هل أنت متأكد من حذف هذا المؤشر؟')) return;
+    try {
+      setToast({ message: 'جاري حذف المؤشر...', type: 'success' });
+      const { error } = await supabase.from('excellence_indicators').delete().eq('id', id);
+      if (error) throw error;
+      setIndicators(prev => prev.filter(ind => ind.id !== id));
+      setToast({ message: 'تم حذف المؤشر بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.DELETE, `excellence_indicators/${id}`);
+    }
+  };
+
   const handleDeleteHistory = async (id: string) => {
     try {
       setToast({ message: 'جاري حذف السجل...', type: 'success' });
@@ -977,6 +1030,45 @@ export default function App() {
       const sanitizedItems = updatedItems.map(({ icon, ...rest }: any) => rest);
       const { error } = await supabase.from('excellence_stats').upsert({ id: category, items: sanitizedItems });
       if (error) throw error;
+    } catch (error) {
+      handleSupabaseError(error, OperationType.UPDATE, `excellence_stats/${category}`);
+    }
+  };
+
+  const handleAddStatItem = async (category: string) => {
+    if (!schoolStats) return;
+    const newItem = { label: "بيان جديد", value: "-", icon: Hash };
+    const updatedItems = [...schoolStats[category], newItem];
+    
+    setSchoolStats({
+      ...schoolStats,
+      [category]: updatedItems
+    });
+
+    try {
+      const sanitizedItems = updatedItems.map(({ icon, ...rest }: any) => rest);
+      const { error } = await supabase.from('excellence_stats').upsert({ id: category, items: sanitizedItems });
+      if (error) throw error;
+      setToast({ message: 'تم إضافة البيان بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.UPDATE, `excellence_stats/${category}`);
+    }
+  };
+
+  const handleDeleteStatItem = async (category: string, index: number) => {
+    if (!schoolStats || !confirm('هل أنت متأكد من حذف هذا البيان؟')) return;
+    const updatedItems = schoolStats[category].filter((_: any, i: number) => i !== index);
+    
+    setSchoolStats({
+      ...schoolStats,
+      [category]: updatedItems
+    });
+
+    try {
+      const sanitizedItems = updatedItems.map(({ icon, ...rest }: any) => rest);
+      const { error } = await supabase.from('excellence_stats').upsert({ id: category, items: sanitizedItems });
+      if (error) throw error;
+      setToast({ message: 'تم حذف البيان بنجاح', type: 'success' });
     } catch (error) {
       handleSupabaseError(error, OperationType.UPDATE, `excellence_stats/${category}`);
     }
@@ -1493,26 +1585,6 @@ export default function App() {
                             </div>
                           ))}
                         </div>
-
-                        {(goal.baseline > 0 || goal.target > 0) && (
-                          <div className="pt-4 border-t border-slate-100">
-                            <p className="text-[9px] font-bold text-slate-400 uppercase mb-3">الإحصائيات الإجمالية</p>
-                            <div className="grid grid-cols-3 gap-4">
-                              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">خط الأساس</p>
-                                <p className="text-xl font-black text-slate-700">{goal.baseline}%</p>
-                              </div>
-                              <div className="bg-madrasati-green/5 p-4 rounded-xl border border-madrasati-green/10 text-center">
-                                <p className="text-[10px] font-bold text-madrasati-green uppercase mb-1">المستهدف</p>
-                                <p className="text-xl font-black text-madrasati-green">{goal.target}%</p>
-                              </div>
-                              <div className="bg-madrasati-orange/5 p-4 rounded-xl border border-madrasati-orange/10 text-center">
-                                <p className="text-[10px] font-bold text-madrasati-orange uppercase mb-1">مقدار التغير</p>
-                                <p className="text-xl font-black text-madrasati-orange">+{goal.changeLastYear}%</p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -1942,12 +2014,26 @@ export default function App() {
                     </div>
 
                     <div className="madrasati-card overflow-hidden mb-8">
-                      <div className="p-6 bg-slate-50 border-b border-slate-100">
+                      <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
                         <h3 className="font-bold text-slate-700">إدارة المؤشرات الرئيسية</h3>
+                        <button 
+                          onClick={handleAddIndicator}
+                          className="flex items-center gap-2 bg-madrasati-green text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-700 transition-all shadow-md active:scale-95"
+                        >
+                          <Plus size={18} />
+                          إضافة مؤشر جديد
+                        </button>
                       </div>
                       <div className="p-8 space-y-6">
                         {indicators.map((ind, i) => (
-                          <div key={ind.id} className="p-6 border border-slate-100 rounded-2xl bg-slate-50/50 space-y-4">
+                          <div key={ind.id} className="p-6 border border-slate-100 rounded-2xl bg-slate-50/50 space-y-4 relative group">
+                            <button 
+                              onClick={() => handleDeleteIndicator(ind.id)}
+                              className="absolute top-4 left-4 text-slate-300 hover:text-rose-500 transition-colors"
+                              title="حذف المؤشر"
+                            >
+                              <Trash2 size={18} />
+                            </button>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                               <div className="space-y-2">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase">عنوان المؤشر</label>
@@ -2326,25 +2412,60 @@ export default function App() {
                     ) : (
                       (Object.entries(schoolStats) as [string, any[]][]).map(([category, stats]) => (
                         <div key={category} className="space-y-4">
-                          <h4 className="text-sm font-black text-madrasati-green uppercase tracking-widest border-r-4 border-madrasati-green pr-3">
-                            {category === 'general' ? 'البيانات العامة' : 
-                             category === 'classes' ? 'الفصول والطلاب' : 
-                             category === 'staff' ? 'الهيئة التعليمية والإدارية' : 'المبنى والمرافق'}
-                          </h4>
+                          <div className="flex items-center justify-between border-r-4 border-madrasati-green pr-3">
+                            <h4 className="text-sm font-black text-madrasati-green uppercase tracking-widest">
+                              {category === 'general' ? 'البيانات العامة' : 
+                               category === 'classes' ? 'الفصول والطلاب' : 
+                               category === 'staff' ? 'الهيئة التعليمية والإدارية' : 'المبنى والمرافق'}
+                            </h4>
+                            <button 
+                              onClick={() => handleAddStatItem(category)}
+                              className="p-1.5 bg-madrasati-green/10 text-madrasati-green rounded-lg hover:bg-madrasati-green hover:text-white transition-all"
+                              title="إضافة بيان جديد"
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {stats.map((stat, idx) => (
-                              <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                              <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 group relative">
+                                <button 
+                                  onClick={() => handleDeleteStatItem(category, idx)}
+                                  className="absolute -top-2 -left-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm z-10"
+                                  title="حذف البيان"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
                                 <div className="p-2 bg-white rounded-lg text-slate-400">
                                   <stat.icon size={16} />
                                 </div>
-                                <div className="flex-1">
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">{stat.label}</p>
-                                  <input 
-                                    type="text" 
-                                    value={stat.value}
-                                    onChange={(e) => handleUpdateStat(category, idx, e.target.value)}
-                                    className="w-full bg-transparent border-none p-0 font-bold text-madrasati-dark focus:ring-0 outline-none"
-                                  />
+                                <div className="flex-1 grid grid-cols-2 gap-2">
+                                  <div>
+                                    <p className="text-[8px] font-bold text-slate-400 uppercase mb-0.5">العنوان</p>
+                                    <input 
+                                      type="text" 
+                                      value={stat.label}
+                                      onChange={(e) => {
+                                        const updatedItems = schoolStats[category].map((s: any, i: number) => 
+                                          i === idx ? { ...s, label: e.target.value } : s
+                                        );
+                                        setSchoolStats({ ...schoolStats, [category]: updatedItems });
+                                        // Debounce or save on blur would be better, but keeping it simple for now
+                                        const sanitizedItems = updatedItems.map(({ icon, ...rest }: any) => rest);
+                                        supabase.from('excellence_stats').upsert({ id: category, items: sanitizedItems });
+                                      }}
+                                      className="w-full bg-transparent border-none p-0 text-[10px] font-bold text-slate-500 focus:ring-0 outline-none"
+                                    />
+                                  </div>
+                                  <div>
+                                    <p className="text-[8px] font-bold text-slate-400 uppercase mb-0.5">القيمة</p>
+                                    <input 
+                                      type="text" 
+                                      value={stat.value}
+                                      onChange={(e) => handleUpdateStat(category, idx, e.target.value)}
+                                      className="w-full bg-transparent border-none p-0 text-xs font-black text-madrasati-dark focus:ring-0 outline-none"
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             ))}
@@ -2459,42 +2580,6 @@ export default function App() {
                               </div>
                             </div>
                           ))}
-                        </div>
-
-                        <div className="pt-4 border-t border-slate-100">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-4">إحصائيات إجمالية للهدف الرئيسي (اختياري)</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                            <div className="space-y-2">
-                              <label className="text-[10px] font-bold text-slate-400 uppercase">إجمالي خط الأساس (%)</label>
-                              <input 
-                                type="number" 
-                                step="0.01"
-                                value={goal.baseline}
-                                onChange={(e) => handleUpdateGoal(goal.id, 'baseline', parseFloat(e.target.value) || 0)}
-                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-center font-bold"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-[10px] font-bold text-slate-400 uppercase">إجمالي المستهدف (%)</label>
-                              <input 
-                                type="number" 
-                                step="0.01"
-                                value={goal.target}
-                                onChange={(e) => handleUpdateGoal(goal.id, 'target', parseFloat(e.target.value) || 0)}
-                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-center font-bold"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-[10px] font-bold text-slate-400 uppercase">إجمالي التغير (%)</label>
-                              <input 
-                                type="number" 
-                                step="0.01"
-                                value={goal.changeLastYear}
-                                onChange={(e) => handleUpdateGoal(goal.id, 'changeLastYear', parseFloat(e.target.value) || 0)}
-                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-center font-bold"
-                              />
-                            </div>
-                          </div>
                         </div>
                       </div>
                     ))}
