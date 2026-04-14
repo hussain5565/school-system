@@ -42,7 +42,8 @@ import {
   UploadCloud,
   File,
   FolderOpen,
-  LogOut
+  LogOut,
+  RefreshCw
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -313,6 +314,13 @@ export default function App() {
       if (!goalsSnap?.length && INITIAL_OPERATIONAL_GOALS.length > 0) {
         for (const goal of INITIAL_OPERATIONAL_GOALS) {
           await supabase.from('excellence_goals').insert(goal);
+        }
+      }
+
+      const { data: membersSnap } = await supabase.from('excellence_members').select('id').limit(1);
+      if (!membersSnap?.length && COMMITTEE_MEMBERS.length > 0) {
+        for (const member of COMMITTEE_MEMBERS) {
+          await supabase.from('excellence_members').insert(member);
         }
       }
 
@@ -699,14 +707,18 @@ export default function App() {
 
   const handleAddGoal = async () => {
     try {
-      const { error } = await supabase.from('excellence_goals').insert({
+      setToast({ message: 'جاري إضافة هدف جديد...', type: 'success' });
+      const newGoal = {
         mainGoal: "هدف جديد",
         subGoals: [""],
         baseline: 0,
         target: 100,
         changeLastYear: 0
-      });
+      };
+      const { data, error } = await supabase.from('excellence_goals').insert(newGoal).select().single();
       if (error) throw error;
+      if (data) setOperationalGoals(prev => [...prev, { ...data, docId: data.id }]);
+      setToast({ message: 'تمت إضافة الهدف بنجاح', type: 'success' });
     } catch (error) {
       handleSupabaseError(error, OperationType.CREATE, 'excellence_goals');
     }
@@ -779,14 +791,14 @@ export default function App() {
         const filePath = `excellence/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('attachments')
+          .from('uploads')
           .upload(filePath, file);
 
         if (uploadError) throw uploadError;
 
         // 2. Get Public URL
         const { data: { publicUrl } } = supabase.storage
-          .from('attachments')
+          .from('uploads')
           .getPublicUrl(filePath);
 
         // 3. Save Metadata to Database
@@ -800,8 +812,13 @@ export default function App() {
           file_path: filePath
         };
         
-        const { error: dbError } = await supabase.from('excellence_attachments').insert(newAttachment);
+        const { error: dbError } = await supabase.from('excellence_attachments').insert(newAttachment).select().single();
         if (dbError) throw dbError;
+        
+        if (dbError === null) {
+          const { data } = await supabase.from('excellence_attachments').select('*').eq('file_path', filePath).single();
+          if (data) setAttachments(prev => [...prev, { ...data, docId: data.id }]);
+        }
         
         setToast({ message: 'تم رفع الملف بنجاح', type: 'success' });
       } catch (error) {
@@ -828,7 +845,7 @@ export default function App() {
       // 2. Delete from Storage if path exists
       if (fileInfo?.file_path) {
         const { error: storageError } = await supabase.storage
-          .from('attachments')
+          .from('uploads')
           .remove([fileInfo.file_path]);
         if (storageError) console.error("Storage delete error:", storageError);
       }
@@ -953,7 +970,7 @@ export default function App() {
     }
   };
 
-  const handleUpdateMember = (index: number, field: string, value: string) => {
+  const handleUpdateMember = async (index: number, field: string, value: string) => {
     const newMembers = [...members];
     newMembers[index] = { ...newMembers[index], [field]: value };
     setMembers(newMembers);
@@ -963,15 +980,17 @@ export default function App() {
     try {
       console.log("Attempting to add new member...");
       setToast({ message: 'جاري إضافة عضو جديد...', type: 'success' });
-      const { data, error } = await supabase.from('excellence_members').insert({
+      const newMember = {
         role: "عضو جديد",
         title: "مسمى العضو",
         description: "وصف مهام العضو",
         color: "bg-slate-500"
-      }).select().single();
+      };
+      const { data, error } = await supabase.from('excellence_members').insert(newMember).select().single();
       
       if (error) throw error;
       console.log("Member added successfully with ID:", data.id);
+      setMembers(prev => [...prev, { ...data, docId: data.id }]);
       setToast({ message: 'تمت إضافة العضو بنجاح', type: 'success' });
     } catch (error: any) {
       console.error("Failed to add member:", error);
@@ -1761,6 +1780,34 @@ export default function App() {
                     </div>
 
                     <div className="madrasati-card overflow-hidden mb-8">
+                      <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                        <h3 className="font-bold text-slate-700">إدارة البيانات والنظام</h3>
+                      </div>
+                      <div className="p-8 flex flex-wrap gap-4">
+                        <button 
+                          onClick={async () => {
+                            setToast({ message: 'جاري استعادة البيانات الافتراضية...', type: 'success' });
+                            await initializeData();
+                            setToast({ message: 'تمت استعادة البيانات بنجاح', type: 'success' });
+                            setTimeout(() => window.location.reload(), 1000);
+                          }}
+                          className="flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-100"
+                        >
+                          <RefreshCw size={20} />
+                          استعادة البيانات الافتراضية
+                        </button>
+
+                        <button 
+                          onClick={handleClearAllData}
+                          className="flex items-center gap-2 px-6 py-3 bg-rose-500 text-white rounded-xl font-bold hover:bg-rose-600 transition-all shadow-lg shadow-rose-100"
+                        >
+                          <Trash2 size={20} />
+                          مسح كافة البيانات
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="madrasati-card overflow-hidden mb-8">
                       <div className="p-6 bg-slate-50 border-b border-slate-100">
                         <h3 className="font-bold text-slate-700">إعدادات الهيكل التنظيمي</h3>
                       </div>
@@ -1793,8 +1840,10 @@ export default function App() {
                                     const input = document.getElementById('org-structure-url') as HTMLInputElement;
                                     if (input.value) {
                                       try {
+                                        setToast({ message: 'جاري تحديث الصورة...', type: 'success' });
                                         const { error } = await supabase.from('excellence_settings').upsert({ id: 'general', orgStructureUrl: input.value });
                                         if (error) throw error;
+                                        setSettings(prev => ({ ...prev, orgStructureUrl: input.value }));
                                         setToast({ message: 'تم تحديث صورة الهيكل بنجاح', type: 'success' });
                                       } catch (error) {
                                         handleSupabaseError(error, OperationType.UPDATE, 'excellence_settings/general');
