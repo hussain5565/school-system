@@ -157,6 +157,7 @@ const Login = ({ onLogin, setUser }: { onLogin: () => void, setUser: (user: any)
         email: 'hussain5565@hotmail.com',
         user_metadata: { full_name: 'مدير النظام' }
       };
+      localStorage.setItem('excellence_admin_session', 'true');
       setUser(mockUser);
       onLogin();
     } else {
@@ -298,7 +299,21 @@ export default function App() {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
+      if (session?.user) {
+        setUser(session.user);
+      } else {
+        // Check for mock session
+        const mockSession = localStorage.getItem('excellence_admin_session');
+        if (mockSession === 'true') {
+          setUser({
+            id: 'admin-id',
+            email: 'hussain5565@hotmail.com',
+            user_metadata: { full_name: 'مدير النظام' }
+          });
+        } else {
+          setUser(null);
+        }
+      }
       setIsAuthReady(true);
     });
 
@@ -654,9 +669,9 @@ export default function App() {
       setToast({ message: 'جاري إضافة هدف جديد...', type: 'success' });
       const newGoal = {
         mainGoal: "هدف جديد",
-        subGoals: [""],
+        subGoals: [{ text: "", baseline: 0, target: 0, change: 0 }],
         baseline: 0,
-        target: 100,
+        target: 0,
         changeLastYear: 0
       };
       const { data, error } = await supabase.from('excellence_goals').insert(newGoal).select().single();
@@ -692,15 +707,15 @@ export default function App() {
 
   const handleAddSubGoal = (goalId: number) => {
     setOperationalGoals(operationalGoals.map(goal => 
-      goal.id === goalId ? { ...goal, subGoals: [...goal.subGoals, ""] } : goal
+      goal.id === goalId ? { ...goal, subGoals: [...goal.subGoals, { text: "", baseline: 0, target: 0, change: 0 }] } : goal
     ));
   };
 
-  const handleUpdateSubGoal = (goalId: number, subIndex: number, value: string) => {
+  const handleUpdateSubGoal = (goalId: number, subIndex: number, field: string, value: any) => {
     setOperationalGoals(operationalGoals.map(goal => 
       goal.id === goalId ? { 
         ...goal, 
-        subGoals: goal.subGoals.map((sg, i) => i === subIndex ? value : sg) 
+        subGoals: goal.subGoals.map((sg: any, i: number) => i === subIndex ? { ...sg, [field]: value } : sg) 
       } : goal
     ));
   };
@@ -911,9 +926,34 @@ export default function App() {
     }
   };
 
+  const handleUpdateIndicator = async (id: string, field: string, value: any) => {
+    try {
+      setToast({ message: 'جاري تحديث المؤشر...', type: 'success' });
+      const { error } = await supabase.from('excellence_indicators').update({ [field]: value }).eq('id', id);
+      if (error) throw error;
+      setIndicators(prev => prev.map(ind => ind.id === id ? { ...ind, [field]: value } : ind));
+      setToast({ message: 'تم تحديث المؤشر بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.UPDATE, 'excellence_indicators');
+    }
+  };
+
+  const handleDeleteHistory = async (id: string) => {
+    try {
+      setToast({ message: 'جاري حذف السجل...', type: 'success' });
+      const { error } = await supabase.from('excellence_history').delete().eq('id', id);
+      if (error) throw error;
+      setHistory(prev => prev.filter(h => h.docId !== id));
+      setToast({ message: 'تم حذف السجل بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.DELETE, `excellence_history/${id}`);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await supabase.auth.signOut();
+      localStorage.removeItem('excellence_admin_session');
       setUser(null);
       setActiveTab('overview');
     } catch (error) {
@@ -1157,7 +1197,7 @@ export default function App() {
                         </div>
                         <div className="text-center md:text-right">
                           <h4 className="text-2xl font-black text-madrasati-dark">أ. وليد العبدلي</h4>
-                          <p className="text-sm text-slate-500 font-bold mt-2">المشرف العام على أعمال اللجنة </p>
+                          <p className="text-sm text-slate-500 font-bold mt-2">المشرف العام على أعمال اللجنة</p>
                           <div className="mt-4 flex items-center justify-center md:justify-end gap-2 text-madrasati-green">
                             <CheckCircle2 size={18} />
                             <span className="text-xs font-bold">مجمع سعد بن عبادة التعليمي</span>
@@ -1425,30 +1465,54 @@ export default function App() {
                           <h3 className="text-xl font-black text-madrasati-dark">{goal.mainGoal}</h3>
                         </div>
 
-                        <div className="space-y-4 mb-8">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">الأهداف التابعة</p>
-                          {goal.subGoals.map((sg, idx) => (
-                            <div key={idx} className="flex items-start gap-3">
-                              <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-madrasati-orange shrink-0"></div>
-                              <p className="text-sm text-slate-600 leading-relaxed">{sg}</p>
+                        <div className="space-y-6 mb-8">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">الأهداف التابعة والنتائج</p>
+                          {goal.subGoals.map((sg: any, idx: number) => (
+                            <div key={idx} className="space-y-3">
+                              <div className="flex items-start gap-3">
+                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-madrasati-orange shrink-0"></div>
+                                <p className="text-sm text-slate-600 leading-relaxed font-bold">{typeof sg === 'string' ? sg : sg.text}</p>
+                              </div>
+                              
+                              {typeof sg === 'object' && (sg.baseline !== undefined || sg.target !== undefined) && (
+                                <div className="grid grid-cols-3 gap-2 mr-4">
+                                  <div className="bg-slate-50/50 px-3 py-2 rounded-lg border border-slate-100">
+                                    <p className="text-[8px] font-bold text-slate-400 uppercase mb-0.5">خط الأساس</p>
+                                    <p className="text-xs font-black text-slate-600">{sg.baseline}%</p>
+                                  </div>
+                                  <div className="bg-emerald-50/50 px-3 py-2 rounded-lg border border-emerald-100">
+                                    <p className="text-[8px] font-bold text-emerald-600 uppercase mb-0.5">المستهدف</p>
+                                    <p className="text-xs font-black text-emerald-600">{sg.target}%</p>
+                                  </div>
+                                  <div className="bg-amber-50/50 px-3 py-2 rounded-lg border border-amber-100">
+                                    <p className="text-[8px] font-bold text-amber-600 uppercase mb-0.5">التغير</p>
+                                    <p className="text-xs font-black text-amber-600">+{sg.change}%</p>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           ))}
                         </div>
 
-                        <div className="grid grid-cols-3 gap-4">
-                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">خط الأساس</p>
-                            <p className="text-xl font-black text-slate-700">{goal.baseline}%</p>
+                        {(goal.baseline > 0 || goal.target > 0) && (
+                          <div className="pt-4 border-t border-slate-100">
+                            <p className="text-[9px] font-bold text-slate-400 uppercase mb-3">الإحصائيات الإجمالية</p>
+                            <div className="grid grid-cols-3 gap-4">
+                              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 text-center">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">خط الأساس</p>
+                                <p className="text-xl font-black text-slate-700">{goal.baseline}%</p>
+                              </div>
+                              <div className="bg-madrasati-green/5 p-4 rounded-xl border border-madrasati-green/10 text-center">
+                                <p className="text-[10px] font-bold text-madrasati-green uppercase mb-1">المستهدف</p>
+                                <p className="text-xl font-black text-madrasati-green">{goal.target}%</p>
+                              </div>
+                              <div className="bg-madrasati-orange/5 p-4 rounded-xl border border-madrasati-orange/10 text-center">
+                                <p className="text-[10px] font-bold text-madrasati-orange uppercase mb-1">مقدار التغير</p>
+                                <p className="text-xl font-black text-madrasati-orange">+{goal.changeLastYear}%</p>
+                              </div>
+                            </div>
                           </div>
-                          <div className="bg-madrasati-green/5 p-4 rounded-xl border border-madrasati-green/10 text-center">
-                            <p className="text-[10px] font-bold text-madrasati-green uppercase mb-1">المستهدف</p>
-                            <p className="text-xl font-black text-madrasati-green">{goal.target}%</p>
-                          </div>
-                          <div className="bg-madrasati-orange/5 p-4 rounded-xl border border-madrasati-orange/10 text-center">
-                            <p className="text-[10px] font-bold text-madrasati-orange uppercase mb-1">مقدار التغير</p>
-                            <p className="text-xl font-black text-madrasati-orange">+{goal.changeLastYear}%</p>
-                          </div>
-                        </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1879,7 +1943,73 @@ export default function App() {
 
                     <div className="madrasati-card overflow-hidden mb-8">
                       <div className="p-6 bg-slate-50 border-b border-slate-100">
-                        <h3 className="font-bold text-slate-700">تعديل نسب المؤشرات</h3>
+                        <h3 className="font-bold text-slate-700">إدارة المؤشرات الرئيسية</h3>
+                      </div>
+                      <div className="p-8 space-y-6">
+                        {indicators.map((ind, i) => (
+                          <div key={ind.id} className="p-6 border border-slate-100 rounded-2xl bg-slate-50/50 space-y-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase">عنوان المؤشر</label>
+                                <input 
+                                  type="text" 
+                                  value={ind.title}
+                                  onChange={(e) => handleUpdateIndicator(ind.id, 'title', e.target.value)}
+                                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none font-bold"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase">المبادرة</label>
+                                <input 
+                                  type="text" 
+                                  value={ind.initiative}
+                                  onChange={(e) => handleUpdateIndicator(ind.id, 'initiative', e.target.value)}
+                                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none font-bold text-madrasati-green"
+                                />
+                              </div>
+                              <div className="md:col-span-2 space-y-2">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase">الوصف</label>
+                                <textarea 
+                                  value={ind.description}
+                                  onChange={(e) => handleUpdateIndicator(ind.id, 'description', e.target.value)}
+                                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-sm min-h-[60px]"
+                                />
+                              </div>
+                            </div>
+                            <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                              <div className="flex items-center gap-4 flex-1 max-w-md">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase whitespace-nowrap">نسبة الإنجاز (%)</label>
+                                <div className="flex-1 relative h-2 bg-slate-200 rounded-full overflow-hidden">
+                                  <input 
+                                    type="range" 
+                                    min="0" 
+                                    max="100" 
+                                    value={ind.progress}
+                                    onChange={(e) => handleUpdateIndicator(ind.id, 'progress', parseInt(e.target.value))}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                  />
+                                  <motion.div 
+                                    initial={false}
+                                    animate={{ width: `${ind.progress}%` }}
+                                    className={`h-full ${ind.color.replace('text-', 'bg-')}`}
+                                  />
+                                </div>
+                                <input 
+                                  type="number" 
+                                  value={ind.progress}
+                                  onChange={(e) => handleUpdateIndicator(ind.id, 'progress', parseInt(e.target.value) || 0)}
+                                  className="w-16 px-2 py-1 bg-white border border-slate-200 rounded text-center font-bold text-sm"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="madrasati-card overflow-hidden mb-8">
+                      <div className="p-6 bg-slate-50 border-b border-slate-100">
+                        <h3 className="font-bold text-slate-700">تعديل نسب المؤشرات (سريع)</h3>
                       </div>
                   <div className="p-8 space-y-8">
                     <div className="p-6 bg-madrasati-green/5 border border-madrasati-green/20 rounded-xl mb-6">
@@ -1983,9 +2113,18 @@ export default function App() {
                                     <p className="text-[10px] text-slate-400">تم الحفظ في هذا التاريخ للمقارنة</p>
                                   </div>
                                 </div>
-                                <div className="text-left">
-                                  <p className="text-lg font-black text-madrasati-green">{h.average}%</p>
-                                  <p className="text-[10px] text-slate-400 font-bold uppercase">المؤشر العام</p>
+                                <div className="flex items-center gap-2">
+                                  <div className="text-left">
+                                    <p className="text-lg font-black text-madrasati-green">{h.average}%</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">المؤشر العام</p>
+                                  </div>
+                                  <button 
+                                    onClick={() => handleDeleteHistory(h.docId)}
+                                    className="p-2 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
+                                    title="حذف السجل"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
                                 </div>
                               </div>
                               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-3 border-t border-slate-50">
@@ -2266,51 +2405,95 @@ export default function App() {
                               إضافة هدف تابع
                             </button>
                           </label>
-                          {goal.subGoals.map((sg, idx) => (
-                            <div key={idx} className="flex gap-2">
-                              <input 
-                                type="text" 
-                                value={sg}
-                                onChange={(e) => handleUpdateSubGoal(goal.id, idx, e.target.value)}
-                                className="flex-1 px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-sm"
-                              />
+                          {goal.subGoals.map((sg: any, idx: number) => (
+                            <div key={idx} className="space-y-3 p-4 bg-white border border-slate-200 rounded-xl relative group/sub">
                               <button 
                                 onClick={() => handleDeleteSubGoal(goal.id, idx)}
-                                className="text-slate-300 hover:text-rose-500"
+                                className="absolute top-2 left-2 text-slate-300 hover:text-rose-500 opacity-0 group-hover/sub:opacity-100 transition-all"
                               >
-                                <Trash2 size={16} />
+                                <Trash2 size={14} />
                               </button>
+                              
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase">نص الهدف التابع</label>
+                                <input 
+                                  type="text" 
+                                  value={typeof sg === 'string' ? sg : sg.text}
+                                  onChange={(e) => handleUpdateSubGoal(goal.id, idx, 'text', e.target.value)}
+                                  placeholder="أدخل نص الهدف التابع..."
+                                  className="w-full px-4 py-2 bg-slate-50 border border-slate-100 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-sm font-bold"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-bold text-slate-400 uppercase">خط الأساس</label>
+                                  <input 
+                                    type="number" 
+                                    step="0.01"
+                                    value={sg.baseline || 0}
+                                    onChange={(e) => handleUpdateSubGoal(goal.id, idx, 'baseline', parseFloat(e.target.value) || 0)}
+                                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-center text-xs font-bold"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-bold text-slate-400 uppercase">المستهدف</label>
+                                  <input 
+                                    type="number" 
+                                    step="0.01"
+                                    value={sg.target || 0}
+                                    onChange={(e) => handleUpdateSubGoal(goal.id, idx, 'target', parseFloat(e.target.value) || 0)}
+                                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-center text-xs font-bold"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-bold text-slate-400 uppercase">التغير</label>
+                                  <input 
+                                    type="number" 
+                                    step="0.01"
+                                    value={sg.change || 0}
+                                    onChange={(e) => handleUpdateSubGoal(goal.id, idx, 'change', parseFloat(e.target.value) || 0)}
+                                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-center text-xs font-bold"
+                                  />
+                                </div>
+                              </div>
                             </div>
                           ))}
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                          <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase">خط الأساس (%)</label>
-                            <input 
-                              type="number" 
-                              value={goal.baseline}
-                              onChange={(e) => handleUpdateGoal(goal.id, 'baseline', parseInt(e.target.value) || 0)}
-                              className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-center font-bold"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase">المستهدف (%)</label>
-                            <input 
-                              type="number" 
-                              value={goal.target}
-                              onChange={(e) => handleUpdateGoal(goal.id, 'target', parseInt(e.target.value) || 0)}
-                              className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-center font-bold"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase">التغير عن العام الماضي (%)</label>
-                            <input 
-                              type="number" 
-                              value={goal.changeLastYear}
-                              onChange={(e) => handleUpdateGoal(goal.id, 'changeLastYear', parseInt(e.target.value) || 0)}
-                              className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-center font-bold"
-                            />
+                        <div className="pt-4 border-t border-slate-100">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase mb-4">إحصائيات إجمالية للهدف الرئيسي (اختياري)</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase">إجمالي خط الأساس (%)</label>
+                              <input 
+                                type="number" 
+                                step="0.01"
+                                value={goal.baseline}
+                                onChange={(e) => handleUpdateGoal(goal.id, 'baseline', parseFloat(e.target.value) || 0)}
+                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-center font-bold"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase">إجمالي المستهدف (%)</label>
+                              <input 
+                                type="number" 
+                                step="0.01"
+                                value={goal.target}
+                                onChange={(e) => handleUpdateGoal(goal.id, 'target', parseFloat(e.target.value) || 0)}
+                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-center font-bold"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase">إجمالي التغير (%)</label>
+                              <input 
+                                type="number" 
+                                step="0.01"
+                                value={goal.changeLastYear}
+                                onChange={(e) => handleUpdateGoal(goal.id, 'changeLastYear', parseFloat(e.target.value) || 0)}
+                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-center font-bold"
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>

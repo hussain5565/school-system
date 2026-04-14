@@ -102,14 +102,20 @@ export const INDICATORS_DATA = [
 export const INITIAL_OPERATIONAL_GOALS = [
   {
     mainGoal: "تحسين نواتج التعلم في المواد الأساسية",
-    subGoals: ["رفع نسبة النجاح في اختبارات نافس", "تطوير مهارات القراءة والكتابة"],
+    subGoals: [
+      { text: "رفع نسبة النجاح في اختبارات نافس", baseline: 70, target: 85, change: 15 },
+      { text: "تطوير مهارات القراءة والكتابة", baseline: 65, target: 80, change: 15 }
+    ],
     baseline: 75,
     target: 85,
     changeLastYear: 5
   },
   {
     mainGoal: "تعزيز الانضباط المدرسي",
-    subGoals: ["تقليل نسبة الغياب بدون عذر", "تفعيل برنامج رفق"],
+    subGoals: [
+      { text: "تقليل نسبة الغياب بدون عذر", baseline: 80, target: 95, change: 15 },
+      { text: "تفعيل برنامج رفق", baseline: 75, target: 90, change: 15 }
+    ],
     baseline: 80,
     target: 95,
     changeLastYear: 10
