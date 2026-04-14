@@ -944,13 +944,23 @@ export default function App() {
     }
   };
 
-  const handleUpdateIndicator = async (id: string, field: string, value: any) => {
+  const handleUpdateIndicator = (id: string, field: string, value: any) => {
+    setIndicators(prev => prev.map(ind => ind.id === id ? { ...ind, [field]: value } : ind));
+  };
+
+  const handleSaveIndicator = async (id: string) => {
+    const indicator = indicators.find(ind => ind.id === id);
+    if (!indicator) return;
     try {
-      setToast({ message: 'جاري تحديث المؤشر...', type: 'success' });
-      const { error } = await supabase.from('excellence_indicators').update({ [field]: value }).eq('id', id);
+      setToast({ message: 'جاري حفظ المؤشر...', type: 'success' });
+      const { error } = await supabase.from('excellence_indicators').update({
+        title: indicator.title,
+        initiative: indicator.initiative,
+        description: indicator.description,
+        progress: indicator.progress
+      }).eq('id', id);
       if (error) throw error;
-      setIndicators(prev => prev.map(ind => ind.id === id ? { ...ind, [field]: value } : ind));
-      setToast({ message: 'تم تحديث المؤشر بنجاح', type: 'success' });
+      setToast({ message: 'تم حفظ المؤشر بنجاح', type: 'success' });
     } catch (error) {
       handleSupabaseError(error, OperationType.UPDATE, 'excellence_indicators');
     }
@@ -1014,22 +1024,26 @@ export default function App() {
     }
   };
 
-  const handleUpdateStat = async (category: string, index: number, newValue: string) => {
+  const handleUpdateStat = (category: string, index: number, field: 'label' | 'value', newValue: string) => {
     if (!schoolStats) return;
     const updatedItems = schoolStats[category].map((stat: any, i: number) => 
-      i === index ? { ...stat, value: newValue } : stat
+      i === index ? { ...stat, [field]: newValue } : stat
     );
     
     setSchoolStats({
       ...schoolStats,
       [category]: updatedItems
     });
+  };
 
+  const handleSaveStats = async (category: string) => {
+    if (!schoolStats) return;
     try {
-      // Strip non-serializable icon components from stats items before saving
-      const sanitizedItems = updatedItems.map(({ icon, ...rest }: any) => rest);
+      setToast({ message: 'جاري حفظ الإحصائيات...', type: 'success' });
+      const sanitizedItems = schoolStats[category].map(({ icon, ...rest }: any) => rest);
       const { error } = await supabase.from('excellence_stats').upsert({ id: category, items: sanitizedItems });
       if (error) throw error;
+      setToast({ message: 'تم حفظ الإحصائيات بنجاح', type: 'success' });
     } catch (error) {
       handleSupabaseError(error, OperationType.UPDATE, `excellence_stats/${category}`);
     }
@@ -2087,6 +2101,12 @@ export default function App() {
                                   className="w-16 px-2 py-1 bg-white border border-slate-200 rounded text-center font-bold text-sm"
                                 />
                               </div>
+                              <button 
+                                onClick={() => handleSaveIndicator(ind.id)}
+                                className="bg-madrasati-green text-white px-6 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-md active:scale-95 text-sm"
+                              >
+                                حفظ المؤشر
+                              </button>
                             </div>
                           </div>
                         ))}
@@ -2445,15 +2465,7 @@ export default function App() {
                                     <input 
                                       type="text" 
                                       value={stat.label}
-                                      onChange={(e) => {
-                                        const updatedItems = schoolStats[category].map((s: any, i: number) => 
-                                          i === idx ? { ...s, label: e.target.value } : s
-                                        );
-                                        setSchoolStats({ ...schoolStats, [category]: updatedItems });
-                                        // Debounce or save on blur would be better, but keeping it simple for now
-                                        const sanitizedItems = updatedItems.map(({ icon, ...rest }: any) => rest);
-                                        supabase.from('excellence_stats').upsert({ id: category, items: sanitizedItems });
-                                      }}
+                                      onChange={(e) => handleUpdateStat(category, idx, 'label', e.target.value)}
                                       className="w-full bg-transparent border-none p-0 text-[10px] font-bold text-slate-500 focus:ring-0 outline-none"
                                     />
                                   </div>
@@ -2462,13 +2474,21 @@ export default function App() {
                                     <input 
                                       type="text" 
                                       value={stat.value}
-                                      onChange={(e) => handleUpdateStat(category, idx, e.target.value)}
+                                      onChange={(e) => handleUpdateStat(category, idx, 'value', e.target.value)}
                                       className="w-full bg-transparent border-none p-0 text-xs font-black text-madrasati-dark focus:ring-0 outline-none"
                                     />
                                   </div>
                                 </div>
                               </div>
                             ))}
+                          </div>
+                          <div className="flex justify-end pt-2">
+                            <button 
+                              onClick={() => handleSaveStats(category)}
+                              className="text-[10px] font-bold bg-madrasati-green/10 text-madrasati-green px-3 py-1.5 rounded-lg hover:bg-madrasati-green hover:text-white transition-all"
+                            >
+                              حفظ {category === 'general' ? 'البيانات العامة' : category === 'classes' ? 'الفصول' : category === 'staff' ? 'المنسوبين' : 'المرافق'}
+                            </button>
                           </div>
                         </div>
                       ))
