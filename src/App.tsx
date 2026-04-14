@@ -812,12 +812,11 @@ export default function App() {
           file_path: filePath
         };
         
-        const { error: dbError } = await supabase.from('excellence_attachments').insert(newAttachment).select().single();
+        const { data, error: dbError } = await supabase.from('excellence_attachments').insert(newAttachment).select().single();
         if (dbError) throw dbError;
         
-        if (dbError === null) {
-          const { data } = await supabase.from('excellence_attachments').select('*').eq('file_path', filePath).single();
-          if (data) setAttachments(prev => [...prev, { ...data, docId: data.id }]);
+        if (data) {
+          setAttachments(prev => [...prev, { ...data, docId: data.id }]);
         }
         
         setToast({ message: 'تم رفع الملف بنجاح', type: 'success' });
