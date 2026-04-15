@@ -571,11 +571,9 @@ export default function App() {
   // Gauge Chart Component
   const GaugeChart = ({ value }: { value: number }) => {
     const centerX = 100;
-    const centerY = 108;
-    const outerRadius = 85;
-    const innerRadius = 60;
+    const centerY = 110;
+    const radius = 70;
     const normalizedValue = Math.min(100, Math.max(0, value));
-    const angle = (normalizedValue / 100) * 180 - 180;
     
     const segments = [
       { label: 'تهيئة', start: 0, end: 49, color: '#ff0000' },
@@ -583,8 +581,6 @@ export default function App() {
       { label: 'تقدم', start: 75, end: 89, color: '#4472c4' },
       { label: 'تميز', start: 90, end: 100, color: '#00b050' }
     ];
-
-    const outerTicks = [10, 20, 30, 40, 49, 50, 65, 75, 90, 100];
 
     const polarToCartesian = (cx: number, cy: number, r: number, angleInDegrees: number) => {
       const angleInRadians = (angleInDegrees * Math.PI) / 180.0;
@@ -594,150 +590,156 @@ export default function App() {
       };
     };
 
+    const status = getPerformanceStatus(normalizedValue);
+    const indicatorAngle = (normalizedValue / 100) * 180 - 180;
+    const indicatorPos = polarToCartesian(centerX, centerY, radius, indicatorAngle);
+
     return (
-      <div className="flex flex-col items-center w-full bg-white rounded-lg shadow-sm overflow-hidden border border-gray-200">
+      <div className="flex flex-col items-center w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100">
         {/* Header */}
-        <div className="w-full bg-gradient-to-r from-[#2e75b6] to-[#548235] py-3 text-center">
-          <h2 className="text-white text-xl font-bold">نتيجة مؤشر الأداء العام</h2>
+        <div className="w-full bg-[#0b2633] py-5 text-center">
+          <h2 className="text-white text-xl font-bold tracking-tight">نتيجة مؤشر الأداء العام</h2>
         </div>
 
-        <div className="relative w-full h-64 flex flex-col items-center justify-center pt-6 pb-4">
-          <svg viewBox="0 0 200 150" className="w-full h-full overflow-visible">
-            {/* Outer Grey Segmented Arc */}
-            {Array.from({ length: 20 }).map((_, i) => {
-              const startAngle = -180 + (i * 9);
-              const endAngle = -180 + ((i + 1) * 9) - 1.5;
-              const startPos = polarToCartesian(centerX, centerY, outerRadius, startAngle);
-              const endPos = polarToCartesian(centerX, centerY, outerRadius, endAngle);
-              return (
-                <path
-                  key={i}
-                  d={`M ${startPos.x} ${startPos.y} A ${outerRadius} ${outerRadius} 0 0 1 ${endPos.x} ${endPos.y}`}
-                  fill="none"
-                  stroke={i < 14 ? "#e2e8f0" : i < 18 ? "#cbd5e1" : "#94a3b8"}
-                  strokeWidth={8}
-                  strokeLinecap="round"
-                />
-              );
-            })}
+        <div className="relative w-full h-80 flex flex-col items-center justify-center pt-10 pb-6">
+          <svg viewBox="0 0 200 140" className="w-full h-full overflow-visible">
+            {/* Background Track */}
+            <path
+              d={`M ${centerX - radius} ${centerY} A ${radius} ${radius} 0 0 1 ${centerX + radius} ${centerY}`}
+              fill="none"
+              stroke="#f1f5f9"
+              strokeWidth="24"
+              strokeLinecap="round"
+            />
 
-            {/* Inner Colored Segmented Arc */}
-            {Array.from({ length: 40 }).map((_, i) => {
-              const val = (i / 40) * 100;
-              const startAngle = -180 + (i * 4.5);
-              const endAngle = -180 + ((i + 1) * 4.5) - 1;
-              const startPos = polarToCartesian(centerX, centerY, innerRadius, startAngle);
-              const endPos = polarToCartesian(centerX, centerY, innerRadius, endAngle);
+            {/* Colored Segments */}
+            {segments.map((seg, i) => {
+              const startAngle = (seg.start / 100) * 180 - 180;
+              const endAngle = (seg.end / 100) * 180 - 180;
+              const startPos = polarToCartesian(centerX, centerY, radius, startAngle);
+              const endPos = polarToCartesian(centerX, centerY, radius, endAngle);
               
-              let color = '#ff0000';
-              if (val >= 50) color = '#ffc000';
-              if (val >= 75) color = '#4472c4';
-              if (val >= 90) color = '#00b050';
-
               return (
                 <path
                   key={i}
-                  d={`M ${startPos.x} ${startPos.y} A ${innerRadius} ${innerRadius} 0 0 1 ${endPos.x} ${endPos.y}`}
+                  d={`M ${startPos.x} ${startPos.y} A ${radius} ${radius} 0 0 1 ${endPos.x} ${endPos.y}`}
                   fill="none"
-                  stroke={color}
-                  strokeWidth={18}
-                  strokeLinecap="round"
+                  stroke={seg.color}
+                  strokeWidth="24"
+                  strokeLinecap="butt"
+                  className="transition-all duration-500"
+                  style={{ opacity: normalizedValue >= seg.start ? 1 : 0.2 }}
                 />
               );
             })}
 
-            {/* Outer Numeric Labels */}
-            {outerTicks.map((tick) => {
-              const tickAngle = (tick / 100) * 180 - 180;
-              const pos = polarToCartesian(centerX, centerY, outerRadius + 15, tickAngle);
+            {/* Progress Indicator (The "Glow" on the arc) */}
+            <motion.g
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+            >
+              {/* Outer Glow */}
+              <circle
+                cx={indicatorPos.x}
+                cy={indicatorPos.y}
+                r={16}
+                fill={status.hex}
+                fillOpacity="0.2"
+              />
+              {/* Main Indicator */}
+              <circle
+                cx={indicatorPos.x}
+                cy={indicatorPos.y}
+                r={10}
+                fill="white"
+                stroke={status.hex}
+                strokeWidth="4"
+                className="shadow-lg"
+              />
+              <circle
+                cx={indicatorPos.x}
+                cy={indicatorPos.y}
+                r={4}
+                fill={status.hex}
+              />
+            </motion.g>
+
+            {/* Ticks and Labels */}
+            {[0, 25, 50, 75, 100].map((tick) => {
+              const angle = (tick / 100) * 180 - 180;
+              const pos = polarToCartesian(centerX, centerY, radius + 25, angle);
               return (
                 <text
                   key={tick}
                   x={pos.x}
                   y={pos.y}
-                  fill="#000"
-                  fontSize="7"
+                  fill="#94a3b8"
+                  fontSize="8"
                   fontWeight="bold"
                   textAnchor="middle"
+                  dominantBaseline="middle"
                 >
-                  {tick}
+                  {tick}%
                 </text>
               );
             })}
 
-            {/* Inner Text Labels with Pointers */}
+            {/* Status Labels */}
             {segments.map((seg, i) => {
               const midAngle = ((seg.start + seg.end) / 2 / 100) * 180 - 180;
-              const labelPos = polarToCartesian(centerX, centerY, innerRadius - 35, midAngle);
-              const pointerStart = polarToCartesian(centerX, centerY, innerRadius - 10, midAngle);
-              const pointerEnd = polarToCartesian(centerX, centerY, innerRadius - 25, midAngle);
+              const labelPos = polarToCartesian(centerX, centerY, radius - 45, midAngle);
               return (
-                <g key={i}>
-                  <line 
-                    x1={pointerStart.x} y1={pointerStart.y} 
-                    x2={pointerEnd.x} y2={pointerEnd.y} 
-                    stroke="#000" strokeWidth="0.5" 
-                  />
-                  <text
-                    x={labelPos.x}
-                    y={labelPos.y}
-                    fill="#000"
-                    fontSize="6"
-                    fontWeight="bold"
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                  >
-                    {seg.label}
-                  </text>
-                </g>
+                <text
+                  key={i}
+                  x={labelPos.x}
+                  y={labelPos.y}
+                  fill={normalizedValue >= seg.start && normalizedValue <= seg.end ? status.hex : "#cbd5e1"}
+                  fontSize="7"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  className="transition-colors duration-500"
+                >
+                  {seg.label}
+                </text>
               );
             })}
 
-            {/* Pivot Point (Bottom Layer) */}
-            <circle cx={centerX} cy={centerY} r={10} fill="#0b2633" />
-
-            {/* Needle and Indicator */}
-            <motion.g
-              initial={{ rotate: -180 }}
-              animate={{ rotate: angle }}
-              transition={{ type: "spring", stiffness: 40, damping: 12 }}
-              style={{ transformOrigin: `${centerX}px ${centerY}px` }}
+            {/* Decorative Center */}
+            <circle cx={centerX} cy={centerY} r={20} fill="#f8fafc" />
+            <text
+              x={centerX}
+              y={centerY - 5}
+              textAnchor="middle"
+              fill="#64748b"
+              fontSize="6"
+              fontWeight="bold"
             >
-              {/* Needle Arm - Tapered Path */}
-              <path
-                d={`M ${centerX} ${centerY - 2} L ${centerX + innerRadius} ${centerY} L ${centerX} ${centerY + 2} Z`}
-                fill={getPerformanceStatus(normalizedValue).hex}
-              />
-              
-              {/* Tip Indicator */}
-              <circle
-                cx={centerX + innerRadius}
-                cy={centerY}
-                r={6}
-                fill="white"
-                stroke={getPerformanceStatus(normalizedValue).hex}
-                strokeWidth="2"
-              />
-              <circle
-                cx={centerX + innerRadius}
-                cy={centerY}
-                r={3}
-                fill={getPerformanceStatus(normalizedValue).hex}
-              />
-            </motion.g>
-
-            {/* Pivot Point Center (Top Layer - Cap) */}
-            <circle cx={centerX} cy={centerY} r={5} fill="#fff" stroke="#0b2633" strokeWidth="1" />
+              مستوى
+            </text>
+            <text
+              x={centerX}
+              y={centerY + 5}
+              textAnchor="middle"
+              fill="#64748b"
+              fontSize="6"
+              fontWeight="bold"
+            >
+              الإنجاز
+            </text>
           </svg>
-          
-          <div className="mb-8 text-slate-400 font-bold text-[10px] uppercase tracking-widest">
-            مستوى الإنجاز
-          </div>
         </div>
 
         {/* Footer */}
-        <div className="w-full bg-[#0b2633] py-2 text-center">
-          <span className="text-white text-2xl font-black tracking-wider">{value.toFixed(2)}%</span>
+        <div className="w-full bg-[#0b2633] py-6 text-center">
+          <div className="flex flex-col items-center">
+            <span className="text-white text-5xl font-black tracking-tighter mb-2">{value.toFixed(2)}%</span>
+            <div className={`flex items-center gap-3 px-6 py-2 rounded-full ${status.bg} bg-opacity-20 border border-white/10`}>
+              <span className={`text-sm font-bold ${status.color}`}>{status.label}</span>
+              <div className={`w-2 h-2 rounded-full ${status.bg} animate-pulse`} />
+            </div>
+          </div>
         </div>
       </div>
     );
