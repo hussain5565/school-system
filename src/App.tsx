@@ -343,85 +343,152 @@ export default function App() {
     if (!isAuthReady) return;
 
     const fetchIndicators = async () => {
-      const { data, error } = await supabase.from('excellence_indicators').select('*');
-      if (error) handleSupabaseError(error, OperationType.LIST, 'excellence_indicators');
-      if (data) {
-        const processed = data.map(docData => {
-          const originalInd = INDICATORS_DATA.find(ind => ind.title === docData.title);
-          return { 
-            ...docData, 
-            docId: docData.id,
-            icon: originalInd?.icon || Target
-          };
-        });
-        setIndicators(processed);
+      try {
+        const { data, error } = await supabase.from('excellence_indicators').select('*');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          const processed = data.map(docData => {
+            const originalInd = INDICATORS_DATA.find(ind => ind.title === docData.title);
+            return { 
+              ...docData, 
+              docId: docData.id,
+              icon: originalInd?.icon || Target
+            };
+          });
+          setIndicators(processed);
+        } else {
+          setIndicators(INDICATORS_DATA.map((ind, i) => ({ ...ind, id: i + 1, docId: (i + 1).toString() })));
+        }
+      } catch (error) {
+        console.warn("Supabase indicators table not found, using local defaults");
+        setIndicators(INDICATORS_DATA.map((ind, i) => ({ ...ind, id: i + 1, docId: (i + 1).toString() })));
+      } finally {
+        setLoading(prev => ({ ...prev, indicators: false }));
       }
-      setLoading(prev => ({ ...prev, indicators: false }));
     };
 
     const fetchGoals = async () => {
-      const { data, error } = await supabase.from('excellence_goals').select('*');
-      if (error) handleSupabaseError(error, OperationType.LIST, 'excellence_goals');
-      if (data) setOperationalGoals(data.map(d => ({ ...d, docId: d.id })));
-      setLoading(prev => ({ ...prev, goals: false }));
+      try {
+        const { data, error } = await supabase.from('excellence_goals').select('*');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setOperationalGoals(data.map(d => ({ ...d, docId: d.id })));
+        } else {
+          setOperationalGoals(INITIAL_OPERATIONAL_GOALS.map((goal, i) => ({ ...goal, id: i + 1, docId: (i + 1).toString() })));
+        }
+      } catch (error) {
+        console.warn("Supabase goals table not found, using local defaults");
+        setOperationalGoals(INITIAL_OPERATIONAL_GOALS.map((goal, i) => ({ ...goal, id: i + 1, docId: (i + 1).toString() })));
+      } finally {
+        setLoading(prev => ({ ...prev, goals: false }));
+      }
     };
 
     const fetchHistory = async () => {
-      const { data, error } = await supabase.from('excellence_history').select('*').order('date', { ascending: false });
-      if (error) handleSupabaseError(error, OperationType.LIST, 'excellence_history');
-      if (data) setHistory(data.map(d => ({ ...d, docId: d.id })) as any);
-      setLoading(prev => ({ ...prev, history: false }));
+      try {
+        const { data, error } = await supabase.from('excellence_history').select('*').order('date', { ascending: false });
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setHistory(data.map(d => ({ ...d, docId: d.id })) as any);
+        } else {
+          setHistory([]);
+        }
+      } catch (error) {
+        console.warn("Supabase history table not found, using local defaults");
+        setHistory([]);
+      } finally {
+        setLoading(prev => ({ ...prev, history: false }));
+      }
     };
 
     const fetchStats = async () => {
-      const { data, error } = await supabase.from('excellence_stats').select('*');
-      if (error) handleSupabaseError(error, OperationType.LIST, 'excellence_stats');
-      if (data) {
-        const statsData: any = { ...SCHOOL_STATS };
-        data.forEach((d) => {
-          const category = d.id;
-          const items = d.items || [];
-          if (statsData[category]) {
-            statsData[category] = statsData[category].map((initialItem: any) => {
-              const updatedItem = items.find((item: any) => item.label === initialItem.label);
-              return updatedItem ? { ...initialItem, value: updatedItem.value } : initialItem;
-            });
-          }
-        });
-        setSchoolStats(statsData);
+      try {
+        const { data, error } = await supabase.from('excellence_stats').select('*');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          const statsData: any = { ...SCHOOL_STATS };
+          data.forEach((d) => {
+            const category = d.id;
+            const items = d.items || [];
+            if (statsData[category]) {
+              statsData[category] = statsData[category].map((initialItem: any) => {
+                const updatedItem = items.find((item: any) => item.label === initialItem.label);
+                return updatedItem ? { ...initialItem, value: updatedItem.value } : initialItem;
+              });
+            }
+          });
+          setSchoolStats(statsData);
+        } else {
+          setSchoolStats(SCHOOL_STATS);
+        }
+      } catch (error) {
+        console.warn("Supabase stats table not found, using local defaults");
+        setSchoolStats(SCHOOL_STATS);
+      } finally {
+        setLoading(prev => ({ ...prev, stats: false }));
       }
-      setLoading(prev => ({ ...prev, stats: false }));
     };
 
     const fetchAttachments = async () => {
-      const { data, error } = await supabase.from('excellence_attachments').select('*');
-      if (error) handleSupabaseError(error, OperationType.LIST, 'excellence_attachments');
-      if (data) setAttachments(data.map(d => ({ ...d, docId: d.id })));
-      setLoading(prev => ({ ...prev, attachments: false }));
+      try {
+        const { data, error } = await supabase.from('excellence_attachments').select('*');
+        if (error) throw error;
+        if (data) setAttachments(data.map(d => ({ ...d, docId: d.id })));
+      } catch (error) {
+        console.warn("Supabase attachments table not found");
+      } finally {
+        setLoading(prev => ({ ...prev, attachments: false }));
+      }
     };
 
     const fetchReports = async () => {
-      const { data, error } = await supabase.from('excellence_reports').select('*');
-      if (error) handleSupabaseError(error, OperationType.LIST, 'excellence_reports');
-      if (data) setReports(data.map(d => ({ ...d, docId: d.id })));
+      try {
+        const { data, error } = await supabase.from('excellence_reports').select('*');
+        if (error) throw error;
+        if (data) setReports(data.map(d => ({ ...d, docId: d.id })));
+      } catch (error) {
+        console.warn("Supabase reports table not found");
+      }
     };
 
     const fetchMembers = async () => {
-      const { data, error } = await supabase.from('excellence_members').select('*');
-      if (error) handleSupabaseError(error, OperationType.LIST, 'excellence_members');
-      if (data) setMembers(data.map(d => ({ ...d, docId: d.id })));
+      try {
+        const { data, error } = await supabase.from('excellence_members').select('*');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setMembers(data.map(d => ({ ...d, docId: d.id })));
+        } else {
+          setMembers(COMMITTEE_MEMBERS.map((m, i) => ({ ...m, id: i + 1, docId: (i + 1).toString() })));
+        }
+      } catch (error) {
+        console.warn("Supabase members table not found, using local defaults");
+        setMembers(COMMITTEE_MEMBERS.map((m, i) => ({ ...m, id: i + 1, docId: (i + 1).toString() })));
+      }
     };
 
     const fetchSettings = async () => {
-      const { data, error } = await supabase.from('excellence_settings').select('*').eq('id', 'general').single();
-      if (error && error.code !== 'PGRST116') handleSupabaseError(error, OperationType.GET, 'excellence_settings/general');
-      if (data) setSettings(data as any);
+      try {
+        const { data, error } = await supabase.from('excellence_settings').select('*').eq('id', 'general').single();
+        if (error && error.code !== 'PGRST116') throw error;
+        if (data) setSettings(data as any);
+      } catch (error) {
+        console.warn("Supabase settings table not found");
+      }
     };
 
     const fetchTasks = async () => {
-      const { data, error } = await supabase.from('excellence_tasks').select('*').order('created_at', { ascending: true });
-      if (error) handleSupabaseError(error, OperationType.LIST, 'excellence_tasks');
-      if (data) setTasks(data.map(d => d.text));
+      try {
+        const { data, error } = await supabase.from('excellence_tasks').select('*').order('created_at', { ascending: true });
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setTasks(data.map(d => d.text));
+        } else {
+          setTasks(TASKS);
+        }
+      } catch (error) {
+        console.warn("Supabase tasks table not found or error, using local defaults");
+        setTasks(TASKS);
+      }
     };
 
     fetchIndicators();
