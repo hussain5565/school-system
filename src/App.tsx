@@ -571,7 +571,7 @@ export default function App() {
   // Gauge Chart Component
   const GaugeChart = ({ value }: { value: number }) => {
     const centerX = 100;
-    const centerY = 115;
+    const centerY = 108;
     const outerRadius = 85;
     const innerRadius = 60;
     const normalizedValue = Math.min(100, Math.max(0, value));
