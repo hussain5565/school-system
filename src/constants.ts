@@ -1,16 +1,16 @@
-import {
-  Target,
-  Users,
-  BarChart3,
-  ClipboardList,
-  Award,
-  BookOpen,
-  Lightbulb,
-  ShieldCheck,
-  TrendingUp,
-  GraduationCap,
-  School,
-  UserCheck,
+import { 
+  Target, 
+  Users, 
+  BarChart3, 
+  ClipboardList, 
+  Award, 
+  BookOpen, 
+  Lightbulb, 
+  ShieldCheck, 
+  TrendingUp, 
+  GraduationCap, 
+  School, 
+  UserCheck, 
   HeartHandshake,
   Settings,
   Hash,
@@ -133,4 +133,12 @@ export const INITIAL_ATTACHMENTS = [
   }
 ];
 
-export const TASKS = [];
+export const TASKS = [
+  "تعزيز مشاركة الاسرة في التحضير لمستقبل ابنائهم",
+  "بناء رحلة تعليمية متكاملة",
+  "تحسين تكافؤ فرص الحصول على التعليم",
+  "تحسين مخرجات التعليم الاساسية",
+  "تحسين ترتيب المؤسسات التعليمية",
+  "توفر معارف نوعية للمتميزين في المجالات ذات الاولوية",
+  "ضمان المواءمة بين مخرجات التعليم واحتياجات سوق العمل"
+];

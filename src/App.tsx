@@ -295,13 +295,20 @@ export default function App() {
       }
 
       // Initialize Tasks
-      const { data: tasksSnap } = await supabase.from('excellence_tasks').select('id').limit(1);
-      if (!tasksSnap?.length) {
-        const tasksToInsert = TASKS.length > 0 ? TASKS.map(t => ({ text: t })) : [
-          { text: "متابعة تنفيذ الخطط التشغيلية" },
-          { text: "رصد مؤشرات الأداء الدورية" },
-          { text: "إعداد تقارير الإنجاز الفصلية" }
-        ];
+      const { data: existingTasks } = await supabase.from('excellence_tasks').select('text');
+      const existingTexts = new Set(existingTasks?.map(t => t.text) || []);
+      
+      const defaultTasks = TASKS.length > 0 ? TASKS : [
+        "متابعة تنفيذ الخطط التشغيلية",
+        "رصد مؤشرات الأداء الدورية",
+        "إعداد تقارير الإنجاز الفصلية"
+      ];
+
+      const tasksToInsert = defaultTasks
+        .filter(t => !existingTexts.has(t))
+        .map(t => ({ text: t }));
+
+      if (tasksToInsert.length > 0) {
         await supabase.from('excellence_tasks').insert(tasksToInsert);
       }
     } catch (error) {
@@ -620,23 +627,22 @@ export default function App() {
             })}
 
             {/* Pivot Point (Bottom Layer) */}
-            <circle cx={centerX} cy={centerY} r={8} fill="#0b2633" />
+            <circle cx={centerX} cy={centerY} r={10} fill="#0b2633" />
 
             {/* Needle and Indicator */}
             <motion.g
               initial={{ rotate: -180 }}
               animate={{ rotate: angle }}
               transition={{ type: "spring", stiffness: 40, damping: 12 }}
-              originX={centerX}
-              originY={centerY}
+              style={{ transformOrigin: `${centerX}px ${centerY}px` }}
             >
-              <line 
-                x1={centerX} y1={centerY} 
-                x2={centerX + innerRadius + 10} y2={centerY} 
-                stroke={getPerformanceStatus(normalizedValue).hex} 
-                strokeWidth="4" 
-                strokeLinecap="round"
+              {/* Needle Arm - Tapered Path */}
+              <path
+                d={`M ${centerX} ${centerY - 2} L ${centerX + innerRadius} ${centerY} L ${centerX} ${centerY + 2} Z`}
+                fill={getPerformanceStatus(normalizedValue).hex}
               />
+              
+              {/* Tip Indicator */}
               <circle
                 cx={centerX + innerRadius}
                 cy={centerY}
@@ -653,8 +659,8 @@ export default function App() {
               />
             </motion.g>
 
-            {/* Pivot Point Center (Top Layer) */}
-            <circle cx={centerX} cy={centerY} r={4} fill="#fff" />
+            {/* Pivot Point Center (Top Layer - Cap) */}
+            <circle cx={centerX} cy={centerY} r={5} fill="#fff" stroke="#0b2633" strokeWidth="1" />
           </svg>
           
           <div className="mb-8 text-slate-400 font-bold text-[10px] uppercase tracking-widest">
@@ -1848,13 +1854,14 @@ export default function App() {
                           <UserCheck size={20} />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-slate-700">{user.email}</p>
+                          <p className="text-sm font-bold text-slate-700">Admin</p>
                           <p className="text-[10px] text-slate-400 font-bold uppercase">مسؤول النظام</p>
                         </div>
                       </div>
                       <button 
                         onClick={() => {
                           supabase.auth.signOut();
+                          localStorage.removeItem('excellence_admin_session');
                           setUser(null);
                           setActiveTab('overview');
                         }}
@@ -1862,31 +1869,6 @@ export default function App() {
                       >
                         <LogOut size={16} />
                         تسجيل الخروج
-                      </button>
-                    </div>
-
-                    {/* Diagnostic Info for the user */}
-                    <div className="bg-slate-900 text-emerald-400 p-4 rounded-xl font-mono text-[10px] mb-8">
-                      <p className="mb-1 font-bold text-white border-b border-slate-700 pb-1 uppercase tracking-widest">Diagnostic Info</p>
-                      <p>Status: <span className="text-white">Authenticated</span></p>
-                      <p>Email: <span className="text-white">{user.email}</span></p>
-                      <p>UID: <span className="text-white">{user.id}</span></p>
-                      <p>Admin Match: <span className={user.email === 'hussain5565@hotmail.com' || user.email === 'hussain5565@gmail.com' ? 'text-emerald-400' : 'text-rose-400'}>
-                        {user.email === 'hussain5565@hotmail.com' || user.email === 'hussain5565@gmail.com' ? 'YES (Authorized)' : 'NO (Check Email)'}
-                      </span></p>
-                    </div>
-
-                    <div className="bg-rose-50 border border-rose-100 p-6 rounded-xl mb-8 flex items-center justify-between">
-                      <div>
-                        <h4 className="text-rose-800 font-black mb-1">منطقة الخطر</h4>
-                        <p className="text-rose-600/70 text-xs font-bold">يمكنك مسح كافة البيانات الافتراضية للبدء في إدخال بياناتك الحقيقية</p>
-                      </div>
-                      <button 
-                        onClick={handleClearAllData}
-                        className="bg-rose-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-rose-700 transition-all shadow-lg flex items-center gap-2"
-                      >
-                        <Trash2 size={20} />
-                        مسح كافة البيانات الافتراضية
                       </button>
                     </div>
 
@@ -2676,49 +2658,6 @@ export default function App() {
                     </button>
                     </div>
                   </div>
-
-                <div className="madrasati-card overflow-hidden mb-8">
-                  <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-700">إدارة مهام اللجنة</h3>
-                    <button 
-                      onClick={handleAddTask}
-                      className="flex items-center gap-2 bg-madrasati-green text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-700 transition-all shadow-md active:scale-95"
-                    >
-                      <Plus size={16} />
-                      إضافة مهمة جديدة
-                    </button>
-                  </div>
-                  <div className="p-8 space-y-4">
-                    {tasks.map((task, idx) => (
-                      <div key={idx} className="flex items-center gap-4 p-4 bg-white border border-slate-100 rounded-xl group relative">
-                        <div className="w-8 h-8 rounded bg-madrasati-green/10 text-madrasati-green flex items-center justify-center font-bold text-sm shrink-0">
-                          {idx + 1}
-                        </div>
-                        <input 
-                          type="text" 
-                          value={task}
-                          onChange={(e) => handleUpdateTask(idx, e.target.value)}
-                          className="flex-1 bg-transparent border-none p-0 text-sm font-bold text-slate-700 focus:ring-0 outline-none"
-                          placeholder="أدخل نص المهمة..."
-                        />
-                        <button 
-                          onClick={() => handleDeleteTask(idx)}
-                          className="text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end">
-                    <button 
-                      onClick={handleSaveTasks}
-                      className="bg-madrasati-green text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
-                    >
-                      حفظ المهام
-                    </button>
-                  </div>
-                </div>
                 </div>
               )}
             </motion.div>
