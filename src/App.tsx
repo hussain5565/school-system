@@ -225,6 +225,7 @@ export default function App() {
   const [manualAverageProgress, setManualAverageProgress] = useState<number | null>(null);
   const [history, setHistory] = useState<{ date: string; indicators: any[]; average: number }[]>([]);
   const [settings, setSettings] = useState<{ orgStructureUrl: string }>({ orgStructureUrl: 'https://picsum.photos/seed/structure/1200/675' });
+  const [tasks, setTasks] = useState<string[]>([]);
   const [user, setUser] = useState<any | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [loading, setLoading] = useState({
@@ -291,6 +292,17 @@ export default function App() {
           id: 'general',
           orgStructureUrl: 'https://picsum.photos/seed/structure/1200/675' 
         });
+      }
+
+      // Initialize Tasks
+      const { data: tasksSnap } = await supabase.from('excellence_tasks').select('id').limit(1);
+      if (!tasksSnap?.length) {
+        const tasksToInsert = TASKS.length > 0 ? TASKS.map(t => ({ text: t })) : [
+          { text: "متابعة تنفيذ الخطط التشغيلية" },
+          { text: "رصد مؤشرات الأداء الدورية" },
+          { text: "إعداد تقارير الإنجاز الفصلية" }
+        ];
+        await supabase.from('excellence_tasks').insert(tasksToInsert);
       }
     } catch (error) {
       console.error("Error initializing data:", error);
@@ -399,6 +411,12 @@ export default function App() {
       if (data) setSettings(data as any);
     };
 
+    const fetchTasks = async () => {
+      const { data, error } = await supabase.from('excellence_tasks').select('*').order('created_at', { ascending: true });
+      if (error) handleSupabaseError(error, OperationType.LIST, 'excellence_tasks');
+      if (data) setTasks(data.map(d => d.text));
+    };
+
     fetchIndicators();
     fetchGoals();
     fetchHistory();
@@ -407,6 +425,7 @@ export default function App() {
     fetchReports();
     fetchMembers();
     fetchSettings();
+    fetchTasks();
 
     // Real-time subscriptions
     const channel = supabase.channel('excellence_changes')
@@ -419,6 +438,7 @@ export default function App() {
         fetchReports();
         fetchMembers();
         fetchSettings();
+        fetchTasks();
       })
       .subscribe();
 
@@ -477,7 +497,7 @@ export default function App() {
   // Gauge Chart Component
   const GaugeChart = ({ value }: { value: number }) => {
     const centerX = 100;
-    const centerY = 130;
+    const centerY = 115;
     const outerRadius = 85;
     const innerRadius = 60;
     const normalizedValue = Math.min(100, Math.max(0, value));
@@ -507,7 +527,7 @@ export default function App() {
           <h2 className="text-white text-xl font-bold">نتيجة مؤشر الأداء العام</h2>
         </div>
 
-        <div className="relative w-full h-64 flex items-center justify-center p-4">
+        <div className="relative w-full h-64 flex flex-col items-center justify-center pt-6 pb-4">
           <svg viewBox="0 0 200 150" className="w-full h-full overflow-visible">
             {/* Outer Grey Segmented Arc */}
             {Array.from({ length: 20 }).map((_, i) => {
@@ -599,61 +619,47 @@ export default function App() {
               );
             })}
 
-            {/* Floating Indicator */}
+            {/* Pivot Point (Bottom Layer) */}
+            <circle cx={centerX} cy={centerY} r={8} fill="#0b2633" />
+
+            {/* Needle and Indicator */}
             <motion.g
               initial={{ rotate: -180 }}
               animate={{ rotate: angle }}
               transition={{ type: "spring", stiffness: 40, damping: 12 }}
-              style={{ originX: `${centerX}px`, originY: `${centerY}px` }}
+              originX={centerX}
+              originY={centerY}
             >
-              <filter id="glow">
-                <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-                <feMerge>
-                  <feMergeNode in="coloredBlur"/>
-                  <feMergeNode in="SourceGraphic"/>
-                </feMerge>
-              </filter>
-              
+              <line 
+                x1={centerX} y1={centerY} 
+                x2={centerX + innerRadius + 10} y2={centerY} 
+                stroke={getPerformanceStatus(normalizedValue).hex} 
+                strokeWidth="4" 
+                strokeLinecap="round"
+              />
               <circle
                 cx={centerX + innerRadius}
                 cy={centerY}
-                r={8}
+                r={6}
                 fill="white"
                 stroke={getPerformanceStatus(normalizedValue).hex}
                 strokeWidth="2"
-                filter="url(#glow)"
               />
               <circle
                 cx={centerX + innerRadius}
                 cy={centerY}
-                r={4}
-                fill={getPerformanceStatus(normalizedValue).hex}
-              />
-              {/* Pointer Triangle */}
-              <path
-                d={`M ${centerX + innerRadius + 8} ${centerY} L ${centerX + innerRadius + 16} ${centerY - 5} L ${centerX + innerRadius + 16} ${centerY + 5} Z`}
+                r={3}
                 fill={getPerformanceStatus(normalizedValue).hex}
               />
             </motion.g>
 
-            {/* Central Value Display */}
-            <text
-              x={centerX}
-              y={centerY - 10}
-              textAnchor="middle"
-              className="fill-madrasati-dark font-black text-3xl"
-            >
-              {normalizedValue}%
-            </text>
-            <text
-              x={centerX}
-              y={centerY + 10}
-              textAnchor="middle"
-              className="fill-slate-400 font-bold text-[8px] uppercase tracking-widest"
-            >
-              مستوى الإنجاز
-            </text>
+            {/* Pivot Point Center (Top Layer) */}
+            <circle cx={centerX} cy={centerY} r={4} fill="#fff" />
           </svg>
+          
+          <div className="mb-8 text-slate-400 font-bold text-[10px] uppercase tracking-widest">
+            مستوى الإنجاز
+          </div>
         </div>
 
         {/* Footer */}
@@ -1085,6 +1091,63 @@ export default function App() {
       setToast({ message: 'تم حذف البيان بنجاح', type: 'success' });
     } catch (error) {
       handleSupabaseError(error, OperationType.UPDATE, `excellence_stats/${category}`);
+    }
+  };
+
+  const handleAddTask = async () => {
+    try {
+      const newTask = { text: "مهمة جديدة" };
+      const { error } = await supabase.from('excellence_tasks').insert(newTask);
+      if (error) throw error;
+      setToast({ message: 'تم إضافة المهمة بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.CREATE, 'excellence_tasks');
+    }
+  };
+
+  const handleUpdateTask = (index: number, value: string) => {
+    setTasks(prev => prev.map((t, i) => i === index ? value : t));
+  };
+
+  const handleSaveTasks = async () => {
+    try {
+      setToast({ message: 'جاري حفظ المهام...', type: 'success' });
+      // This is a bit complex because we don't have IDs in the state easily
+      // Let's fetch them first or just delete and re-insert (not ideal but simple)
+      // Better: fetch all and update
+      const { data } = await supabase.from('excellence_tasks').select('id').order('created_at', { ascending: true });
+      if (data) {
+        for (let i = 0; i < tasks.length; i++) {
+          if (data[i]) {
+            await supabase.from('excellence_tasks').update({ text: tasks[i] }).eq('id', data[i].id);
+          } else {
+            await supabase.from('excellence_tasks').insert({ text: tasks[i] });
+          }
+        }
+        // Delete extra tasks
+        if (data.length > tasks.length) {
+          const idsToDelete = data.slice(tasks.length).map(d => d.id);
+          await supabase.from('excellence_tasks').delete().in('id', idsToDelete);
+        }
+      }
+      setToast({ message: 'تم حفظ المهام بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.UPDATE, 'excellence_tasks');
+    }
+  };
+
+  const handleDeleteTask = async (index: number) => {
+    if (!confirm('هل أنت متأكد من حذف هذه المهمة؟')) return;
+    try {
+      const { data } = await supabase.from('excellence_tasks').select('id').order('created_at', { ascending: true });
+      if (data && data[index]) {
+        const { error } = await supabase.from('excellence_tasks').delete().eq('id', data[index].id);
+        if (error) throw error;
+        setTasks(prev => prev.filter((_, i) => i !== index));
+        setToast({ message: 'تم حذف المهمة بنجاح', type: 'success' });
+      }
+    } catch (error) {
+      handleSupabaseError(error, OperationType.DELETE, 'excellence_tasks');
     }
   };
 
@@ -2613,6 +2676,49 @@ export default function App() {
                     </button>
                     </div>
                   </div>
+
+                <div className="madrasati-card overflow-hidden mb-8">
+                  <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-700">إدارة مهام اللجنة</h3>
+                    <button 
+                      onClick={handleAddTask}
+                      className="flex items-center gap-2 bg-madrasati-green text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-700 transition-all shadow-md active:scale-95"
+                    >
+                      <Plus size={16} />
+                      إضافة مهمة جديدة
+                    </button>
+                  </div>
+                  <div className="p-8 space-y-4">
+                    {tasks.map((task, idx) => (
+                      <div key={idx} className="flex items-center gap-4 p-4 bg-white border border-slate-100 rounded-xl group relative">
+                        <div className="w-8 h-8 rounded bg-madrasati-green/10 text-madrasati-green flex items-center justify-center font-bold text-sm shrink-0">
+                          {idx + 1}
+                        </div>
+                        <input 
+                          type="text" 
+                          value={task}
+                          onChange={(e) => handleUpdateTask(idx, e.target.value)}
+                          className="flex-1 bg-transparent border-none p-0 text-sm font-bold text-slate-700 focus:ring-0 outline-none"
+                          placeholder="أدخل نص المهمة..."
+                        />
+                        <button 
+                          onClick={() => handleDeleteTask(idx)}
+                          className="text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end">
+                    <button 
+                      onClick={handleSaveTasks}
+                      className="bg-madrasati-green text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
+                    >
+                      حفظ المهام
+                    </button>
+                  </div>
+                </div>
                 </div>
               )}
             </motion.div>
@@ -2637,7 +2743,7 @@ export default function App() {
                     </div>
                   </div>
                   <div className="p-6 space-y-3">
-                    {TASKS.map((task, i) => (
+                    {tasks.map((task, i) => (
                       <div key={i} className="flex items-center gap-4 p-4 bg-white border border-slate-100 rounded-lg hover:bg-slate-50 transition-colors group">
                         <div className="w-8 h-8 rounded bg-madrasati-green/10 text-madrasati-green flex items-center justify-center font-bold text-sm">
                           {i + 1}
