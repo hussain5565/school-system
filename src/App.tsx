@@ -842,7 +842,8 @@ export default function App() {
   const uploadWithProgress = (bucket: string, path: string, file: File, onProgress: (progress: number) => void): Promise<{ data: any, error: any }> => {
     return new Promise((resolve) => {
       const xhr = new XMLHttpRequest();
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/${bucket}/${path}`;
+      const baseUrl = import.meta.env.VITE_SUPABASE_URL.replace(/\/$/, '');
+      const url = `${baseUrl}/storage/v1/object/${bucket}/${path}`;
       
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
@@ -852,24 +853,37 @@ export default function App() {
       
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          resolve({ data: JSON.parse(xhr.response), error: null });
+          try {
+            const res = xhr.response ? JSON.parse(xhr.response) : { message: 'Success' };
+            resolve({ data: res, error: null });
+          } catch (e) {
+            resolve({ data: { message: 'Success' }, error: null });
+          }
         } else {
+          console.error("Upload failed with status:", xhr.status, "Response:", xhr.response);
           try {
             const res = JSON.parse(xhr.response);
             resolve({ data: null, error: res });
           } catch (e) {
-            resolve({ data: null, error: { message: `Upload failed: ${xhr.status}` } });
+            resolve({ data: null, error: { message: `فشل الرفع: كود الحالة ${xhr.status}`, details: xhr.response } });
           }
         }
       };
       
-      xhr.onerror = () => resolve({ data: null, error: { message: 'Network error during upload' } });
+      xhr.onerror = () => {
+        console.error("Network error during XHR upload");
+        resolve({ data: null, error: { message: 'خطأ في الشبكة أثناء الرفع. تأكد من اتصالك بالإنترنت.' } });
+      };
       
       xhr.open('POST', url);
       xhr.setRequestHeader('Authorization', `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`);
       xhr.setRequestHeader('apikey', import.meta.env.VITE_SUPABASE_ANON_KEY);
-      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-      xhr.setRequestHeader('x-upsert', 'false');
+      // Removed Content-Type here because with XHR and File it might be better to let browser decide
+      // Or set it explicitly if needed
+      if (file.type) {
+        xhr.setRequestHeader('Content-Type', file.type);
+      }
+      xhr.setRequestHeader('x-upsert', 'true'); // Changed to true to overwrite if exists
       xhr.send(file);
     });
   };
@@ -887,7 +901,10 @@ export default function App() {
 
         const { error: uploadError } = await uploadWithProgress('uploads', filePath, file, setUploadProgress);
 
-        if (uploadError) throw typeof uploadError === 'string' ? new Error(uploadError) : uploadError;
+        if (uploadError) {
+          const errMsg = uploadError.message || uploadError.error || JSON.stringify(uploadError);
+          throw new Error(errMsg);
+        }
 
         // 2. Get Public URL
         const { data: { publicUrl } } = supabase.storage
@@ -916,8 +933,8 @@ export default function App() {
         setTimeout(() => setUploadProgress(null), 1000);
       } catch (error: any) {
         setUploadProgress(null);
-        console.error("Upload error:", error);
-        setToast({ message: `فشل رفع الملف: ${error.message || error.error || 'خطأ غير معروف'}`, type: 'error' });
+        console.error("Upload error details:", error);
+        setToast({ message: `فشل الرفع: ${error.message || 'خطأ غير معروف'}`, type: 'error' });
       }
     }
   };
@@ -982,7 +999,10 @@ export default function App() {
 
       const { error: uploadError } = await uploadWithProgress('uploads', filePath, file, setUploadProgress);
 
-      if (uploadError) throw typeof uploadError === 'string' ? new Error(uploadError) : uploadError;
+      if (uploadError) {
+        const errMsg = uploadError.message || uploadError.error || JSON.stringify(uploadError);
+        throw new Error(errMsg);
+      }
 
       const { data: { publicUrl } } = supabase.storage
         .from('uploads')
@@ -996,8 +1016,8 @@ export default function App() {
         file_path: filePath
       };
       
-      const { data, error } = await supabase.from('excellence_reports').insert(newReport).select().single();
-      if (error) throw error;
+      const { data, error: dbError } = await supabase.from('excellence_reports').insert(newReport).select().single();
+      if (dbError) throw dbError;
       
       if (data) {
         const addedReport = { ...data, docId: data.id };
@@ -1008,9 +1028,9 @@ export default function App() {
       setTimeout(() => setUploadProgress(null), 1000);
     } catch (error: any) {
       setUploadProgress(null);
-      console.error("Report addition failed:", error);
+      console.error("Report addition failed details:", error);
       setToast({ 
-        message: `حدث خطأ: ${error.message || error.error || 'تعذر إضافة التقرير. تأكد من إعدادات التخزين (Storage).'}`, 
+        message: `حدث خطأ: ${error.message || 'تعذر إضافة التقرير. تأكد من إعدادات التخزين (Storage).'}`, 
         type: 'error' 
       });
     }
