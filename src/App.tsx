@@ -3,817 +3,2862 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as React from 'react';
-import { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, Component } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { supabase } from './supabase';
 import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
-  ResponsiveContainer, AreaChart, Area, BarChart, Bar, Cell 
-} from 'recharts';
-import { 
-  Search, TrendingUp, TrendingDown, Info, AlertTriangle, 
-  ArrowRight, ArrowLeft, Loader2, Newspaper, Target, 
-  LineChart as ChartIcon, Activity, ChevronRight,
-  Lock, Mail, User as UserIcon, X
+  Target, 
+  Users, 
+  BarChart3, 
+  ClipboardList, 
+  Award, 
+  ChevronLeft,
+  LayoutDashboard,
+  Info,
+  CheckCircle2,
+  ArrowRight,
+  TrendingUp,
+  School,
+  Hash,
+  GraduationCap,
+  BookOpen,
+  Clock,
+  Calendar,
+  MapPin,
+  Mail,
+  Phone,
+  PhoneCall,
+  UserCheck,
+  Lightbulb,
+  Settings,
+  ShieldCheck,
+  Flag,
+  Plus,
+  Trash2,
+  PlusCircle,
+  Milestone,
+  FileText,
+  Download,
+  UploadCloud,
+  File as FileIcon,
+  FolderOpen,
+  LogOut,
+  RefreshCw
 } from 'lucide-react';
-import { format, subMonths, startOfDay } from 'date-fns';
-import { GoogleGenAI } from "@google/genai";
-import { clsx, type ClassValue } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-import { loginWithGoogle, logout, supabase, loginWithEmail, signUpWithEmail } from './supabase';
-import { User } from '@supabase/supabase-js';
-import { StockQuote, HistoricalData, NewsItem, AIAnalysis } from './types';
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer,
+  Cell
+} from 'recharts';
+import { COMMITTEE_MEMBERS, SCHOOL_STATS, TASKS, INDICATORS_DATA, INITIAL_OPERATIONAL_GOALS, INITIAL_ATTACHMENTS } from './constants';
 
-// Utility for tailwind classes
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
-
-const COMMON_STOCKS = [
-  { label: "اختبار الاتصال (TEST)", value: "TEST", market: "US", tv: "TEST" },
-  // Saudi (TASI)
-  { label: "الراجحي (1120)", value: "1120.SR", market: "TASI", tv: "TADAWUL:1120" },
-  { label: "أرامكو (2222)", value: "2222.SR", market: "TASI", tv: "TADAWUL:2222" },
-  { label: "سابك (2010)", value: "2010.SR", market: "TASI", tv: "TADAWUL:2010" },
-  { label: "إس تي سي (7010)", value: "7010.SR", market: "TASI", tv: "TADAWUL:7010" },
-  { label: "الأهلي (1180)", value: "1180.SR", market: "TASI", tv: "TADAWUL:1180" },
-  // US
-  { label: "Apple (AAPL)", value: "AAPL", market: "US", tv: "NASDAQ:AAPL" },
-  { label: "Nvidia (NVDA)", value: "NVDA", market: "US", tv: "NASDAQ:NVDA" },
-  { label: "Tesla (TSLA)", value: "TSLA", market: "US", tv: "NASDAQ:TSLA" },
-  { label: "Microsoft (MSFT)", value: "MSFT", market: "US", tv: "NASDAQ:MSFT" },
-  { label: "Google (GOOGL)", value: "GOOGL", market: "US", tv: "NASDAQ:GOOGL" },
-];
-
-// Utility for safe date formatting
-function safeFormat(date: any, formatStr: string) {
-  try {
-    if (!date) return '---';
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return '---';
-    return format(d, formatStr);
-  } catch (e) {
-    return '---';
-  }
-}
-
-export default function App() {
-  const [hasError, setHasError] = useState(false);
-  const [errorInfo, setErrorInfo] = useState<any>(null);
-
-  useEffect(() => {
-    console.log("App mounted");
-  }, []);
-
-  useEffect(() => {
-    const handleError = (event: ErrorEvent) => {
-      // Ignore cross-origin script errors as they are usually non-fatal 
-      // and prevented from displaying details anyway.
-      if (event.message === 'Script error.' || !event.message) {
-         console.warn("Caught cross-origin Script error or empty message - suppressing UI crash.");
-         return;
-      }
-      
-      // Filter out common harmless internal errors
-      if (event.message.includes('ResizeObserver') || event.message.includes('supabase')) {
-        console.warn("Suppressed minor internal error:", event.message);
-        return;
-      }
-      
-      console.error("GLOBAL ERROR CAUGHT:", event.error || event.message);
-      setHasError(true);
-      setErrorInfo(event.error || { message: event.message || "عطل غير معروف في النظام" });
-    };
-    window.addEventListener('error', handleError);
-    return () => window.removeEventListener('error', handleError);
-  }, []);
-
-  if (hasError) {
-    return (
-      <div className="min-h-screen bg-bg text-text-main flex flex-col items-center justify-center p-8 text-center" dir="rtl">
-        <AlertTriangle className="w-16 h-16 text-accent-red mb-6" />
-        <h1 className="text-2xl font-bold mb-4">عذراً، حدث خطأ غير متوقع</h1>
-        <p className="text-text-muted mb-8 max-w-md leading-relaxed">
-          حدث خلل أثناء تشغيل المنصة. يرجى التأكد من إعدادات الاتصال أو المحاولة مرة أخرى لاحقاً.
-        </p>
-        <pre className="bg-accent-red/10 border border-accent-red/30 p-4 rounded text-xs font-mono text-accent-red mb-8 max-w-full overflow-auto">
-          {errorInfo?.message || "Unknown Error"}
-        </pre>
-        <button 
-          onClick={() => window.location.reload()}
-          className="bg-accent-blue text-white px-6 py-3 font-bold hover:bg-accent-blue/80 transition-colors rounded"
-        >
-          إعادة تحميل الصفحة
-        </button>
+const SectionHeader = ({ title, icon: Icon, subtitle }: { title: string, icon: any, subtitle?: string }) => (
+  <div className="mb-8">
+    <div className="flex items-center gap-3 mb-2">
+      <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
+        <Icon size={24} />
       </div>
-    );
-  }
+      <h2 className="text-2xl font-bold text-slate-800">{title}</h2>
+    </div>
+    {subtitle && <p className="text-slate-500 mr-11">{subtitle}</p>}
+  </div>
+);
 
-  return <Dashboard />;
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
 }
 
-// TradingView Widget Component
-function TradingViewWidget({ tvSymbol }: { tvSymbol: string }) {
-  if (!tvSymbol || tvSymbol === 'TEST') {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-surface border border-dashed border-border-custom rounded-xl p-12 text-center">
-        <div>
-          <Activity className="w-12 h-12 text-accent-blue mx-auto mb-4 opacity-30" />
-          <p className="text-text-muted font-mono uppercase tracking-widest text-xs opacity-50">لا يوجد رسم بياني للمعاينة</p>
+interface SupabaseErrorInfo {
+  error: string;
+  operationType: OperationType;
+  table: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | undefined;
+  }
+}
+
+function handleSupabaseError(error: any, operationType: OperationType, table: string | null) {
+  const errInfo: SupabaseErrorInfo = {
+    error: error?.message || String(error),
+    authInfo: {
+      userId: undefined,
+      email: undefined
+    },
+    operationType,
+    table
+  }
+  console.error('Supabase Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
+class ErrorBoundary extends React.Component<any, any> {
+  state = { hasError: false, error: null };
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      let message = "حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.";
+      try {
+        const parsed = JSON.parse(this.state.error.message);
+        if (parsed.error.includes('Missing or insufficient permissions')) {
+          message = "ليس لديك الصلاحيات الكافية للقيام بهذا الإجراء.";
+        }
+      } catch (e) {}
+      
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 text-center">
+          <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl border border-rose-100">
+            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-6">
+              <ShieldCheck size={32} />
+            </div>
+            <h2 className="text-xl font-bold text-slate-800 mb-2">خطأ في النظام</h2>
+            <p className="text-slate-500 mb-6">{message}</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full py-3 bg-madrasati-green text-white rounded-xl font-bold hover:bg-madrasati-green/90 transition-all"
+            >
+              إعادة تحميل الصفحة
+            </button>
+          </div>
         </div>
-      </div>
-    );
-  }
+      );
+    }
 
-  // Use the standard TradingView embed URL with forced dark theme and Arabic locale
-  const chartUrl = `https://s.tradingview.com/widgetembed/?symbol=${encodeURIComponent(tvSymbol)}&theme=dark&locale=ar&interval=D&hidesidetoolbar=1&symboledit=0&saveimage=0&toolbarbg=131722&timezone=Asia/Riyadh`;
+    return (this as any).props.children;
+  }
+}
+
+const Login = ({ onLogin, setUser }: { onLogin: () => void, setUser: (user: any) => void }) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [adminPass, setAdminPass] = useState('');
+
+  const isPlaceholder = supabase.auth.getSession === undefined || (import.meta.env.VITE_SUPABASE_URL?.includes('placeholder'));
+
+  const handlePasswordLogin = () => {
+    // Simple fallback for development/preview environment
+    if (adminPass === 'admin123') {
+      const mockUser = {
+        id: 'admin-id',
+        email: 'hussain5565@hotmail.com',
+        user_metadata: { full_name: 'مدير النظام' }
+      };
+      localStorage.setItem('excellence_admin_session', 'true');
+      setUser(mockUser);
+      onLogin();
+    } else {
+      setError('كلمة المرور غير صحيحة');
+    }
+  };
 
   return (
-    <div className="h-full w-full overflow-hidden rounded-xl border border-border-custom bg-[#131722]">
-      <iframe
-        key={tvSymbol}
-        src={chartUrl}
-        title={`TradingView Chart - ${tvSymbol}`}
-        className="w-full h-full border-none"
-        allow="autoplay; encrypted-media"
-        allowFullScreen
-      />
+    <div className="max-w-md mx-auto bg-white p-10 rounded-3xl shadow-xl border border-slate-100 text-center">
+      <div className="w-20 h-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+        <ShieldCheck size={40} />
+      </div>
+      <h2 className="text-2xl font-black text-slate-800 mb-2">دخول المسؤول</h2>
+      
+      {isPlaceholder && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-700 text-xs font-bold leading-relaxed">
+          تنبيه: التطبيق يستخدم إعدادات تجريبية. يرجى إضافة VITE_SUPABASE_URL و VITE_SUPABASE_ANON_KEY في إعدادات المنصة (Settings) لربط قاعدة بياناتك.
+        </div>
+      )}
+
+      <p className="text-slate-500 text-sm mb-8 leading-relaxed">
+        سجل الدخول لإدارة بيانات المدرسة والمؤشرات.
+      </p>
+
+      {error && (
+        <div className="mb-6 p-4 bg-rose-50 border border-rose-100 rounded-xl text-rose-600 text-xs font-bold">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <input 
+          type="password"
+          placeholder="كلمة مرور المسؤول"
+          value={adminPass}
+          onChange={(e) => setAdminPass(e.target.value)}
+          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-madrasati-green outline-none text-center font-bold"
+        />
+        <button 
+          onClick={handlePasswordLogin}
+          disabled={loading}
+          className="w-full py-4 bg-madrasati-green text-white rounded-2xl font-bold hover:bg-emerald-700 transition-all shadow-lg disabled:opacity-50"
+        >
+          {loading ? "جاري الدخول..." : "دخول"}
+        </button>
+      </div>
+      
+      <p className="mt-8 text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+        نظام الإدارة المدرسية الموحد
+      </p>
     </div>
   );
-}
+};
 
-function Dashboard() {
-  const [symbol, setSymbol] = useState("1120.SR");
-  const [market, setMarket] = useState<"TASI" | "US">("TASI");
-  const [tvSymbol, setTvSymbol] = useState("TADAWUL:1120");
-  const [quote, setQuote] = useState<StockQuote | null>(null);
-  const [history, setHistory] = useState<HistoricalData[]>([]);
-  const [news, setNews] = useState<NewsItem[]>([]);
-  const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [user, setUser] = useState<User | null>(null);
+export default function App() {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [indicators, setIndicators] = useState<any[]>([]);
+  const [operationalGoals, setOperationalGoals] = useState<any[]>([]);
+  const [schoolStats, setSchoolStats] = useState<any>(null);
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [reports, setReports] = useState<any[]>([]);
+  const [reportPassword, setReportPassword] = useState<{ [key: string]: string }>({});
+  const [unlockedReports, setUnlockedReports] = useState<{ [key: string]: boolean }>({});
+  const [members, setMembers] = useState<any[]>(COMMITTEE_MEMBERS);
+  const [manualAverageProgress, setManualAverageProgress] = useState<number | null>(null);
+  const [history, setHistory] = useState<{ date: string; indicators: any[]; average: number }[]>([]);
+  const [settings, setSettings] = useState<{ orgStructureUrl: string }>({ orgStructureUrl: 'https://picsum.photos/seed/structure/1200/675' });
+  const [tasks, setTasks] = useState<string[]>([]);
+  const [user, setUser] = useState<any | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [loading, setLoading] = useState({
+    indicators: true,
+    goals: true,
+    history: true,
+    stats: true,
+    attachments: true
+  });
 
-  // Auth Modal State
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authFullName, setAuthFullName] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-
-  // Initialize Gemini safely
-  const ai = useMemo(() => {
-    // In AI Studio, the key is typically injected as process.env.GEMINI_API_KEY
-    // But we check multiple common locations to be safe.
-    const key = process.env.GEMINI_API_KEY || 
-                (window as any).GEMINI_API_KEY || 
-                (import.meta as any).env.VITE_GEMINI_API_KEY;
-    
-    if (!key || key.length < 10 || key === 'MY_GEMINI_API_KEY' || key === 'undefined') {
-      console.warn("AI Warning: GEMINI_API_KEY is not detected or invalid.");
-      return null;
-    }
-    return new GoogleGenAI({ apiKey: key });
-  }, []);
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
-    // Listen for changes
+  // Initialize data if Firestore is empty
+  const initializeData = async () => {
+    try {
+      const { data: indSnap } = await supabase.from('excellence_indicators').select('id').limit(1);
+      if (!indSnap?.length && INDICATORS_DATA.length > 0) {
+        for (const ind of INDICATORS_DATA) {
+          const { icon, ...rest } = ind;
+          await supabase.from('excellence_indicators').insert({ ...rest });
+        }
+      }
+      
+      const { data: goalsSnap } = await supabase.from('excellence_goals').select('id').limit(1);
+      if (!goalsSnap?.length && INITIAL_OPERATIONAL_GOALS.length > 0) {
+        for (const goal of INITIAL_OPERATIONAL_GOALS) {
+          await supabase.from('excellence_goals').insert(goal);
+        }
+      }
+
+      const { data: membersSnap } = await supabase.from('excellence_members').select('id').limit(1);
+      if (!membersSnap?.length && COMMITTEE_MEMBERS.length > 0) {
+        for (const member of COMMITTEE_MEMBERS) {
+          await supabase.from('excellence_members').insert(member);
+        }
+      }
+
+      const { data: statsSnap } = await supabase.from('excellence_stats').select('id').limit(1);
+      if (!statsSnap?.length) {
+        for (const [category, items] of Object.entries(SCHOOL_STATS)) {
+          const sanitizedItems = (items as any[]).map(({ icon, ...rest }) => rest);
+          await supabase.from('excellence_stats').insert({ id: category, items: sanitizedItems });
+        }
+      }
+
+      const { data: attachSnap } = await supabase.from('excellence_attachments').select('id').limit(1);
+      if (!attachSnap?.length && INITIAL_ATTACHMENTS.length > 0) {
+        for (const attach of INITIAL_ATTACHMENTS) {
+          await supabase.from('excellence_attachments').insert(attach);
+        }
+      }
+
+      const { data: settingsSnap } = await supabase.from('excellence_settings').select('id').eq('id', 'general').single();
+      if (!settingsSnap) {
+        await supabase.from('excellence_settings').insert({ 
+          id: 'general',
+          orgStructureUrl: 'https://picsum.photos/seed/structure/1200/675' 
+        });
+      }
+
+      // Initialize Tasks
+      const { data: existingTasks } = await supabase.from('excellence_tasks').select('text');
+      const existingTexts = new Set(existingTasks?.map(t => t.text) || []);
+      
+      const defaultTasks = TASKS.length > 0 ? TASKS : [
+        "متابعة تنفيذ الخطط التشغيلية",
+        "رصد مؤشرات الأداء الدورية",
+        "إعداد تقارير الإنجاز الفصلية"
+      ];
+
+      const tasksToInsert = defaultTasks
+        .filter(t => !existingTexts.has(t))
+        .map(t => ({ text: t }));
+
+      if (tasksToInsert.length > 0) {
+        await supabase.from('excellence_tasks').insert(tasksToInsert);
+      }
+    } catch (error) {
+      console.error("Error initializing data:", error);
+    }
+  };
+
+  useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      if (session?.user) {
+        setUser(session.user);
+      } else {
+        // Check for mock session
+        const mockSession = localStorage.getItem('excellence_admin_session');
+        if (mockSession === 'true') {
+          setUser({
+            id: 'admin-id',
+            email: 'hussain5565@hotmail.com',
+            user_metadata: { full_name: 'مدير النظام' }
+          });
+        } else {
+          setUser(null);
+        }
+      }
+      setIsAuthReady(true);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthLoading(true);
-    setAuthError(null);
-    try {
-      if (authMode === 'login') {
-        await loginWithEmail(authEmail, authPassword);
-      } else {
-        if (!authFullName) throw new Error("يرجى إدخال الاسم الكامل");
-        await signUpWithEmail(authEmail, authPassword, authFullName);
-      }
-      setIsAuthModalOpen(false);
-    } catch (err: any) {
-      setAuthError(err.message || "حدث خطأ في عملية المصادقة");
-    } finally {
-      setAuthLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!isAuthReady) return;
 
-  const fetchData = async (s: string) => {
-    if (!s) return;
-    setLoading(true);
-    setError(null);
-
-    // Minor warning instead of blocking error for static hosts
-    const isStaticHost = window.location.hostname.includes('web.app') || window.location.hostname.includes('firebaseapp.com');
-
-    try {
-      const encodedSymbol = encodeURIComponent(s);
-      const qResponse = await fetch(`/api/quote/${encodedSymbol}`);
-      
-      if (!qResponse.ok) {
-        const errorText = await qResponse.text();
-        console.error("Server API Error:", qResponse.status, errorText);
-        throw new Error(`خطأ في السيرفر (${qResponse.status}): تعذر جلب بيانات السهم.`);
-      }
-
-      const contentType = qResponse.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        const text = await qResponse.text();
-        console.error("Non-JSON Response Catch:", text.substring(0, 100));
-        if (isStaticHost) {
-          throw new Error("تنبيه: أنت تستخدم نسخة العرض المستضافة. يرجى فتح التطبيق من داخل AI Studio لرؤية البيانات الحقيقية.");
-        }
-        throw new Error("تلقى النظام رداً غير صالح من السيرفر.");
-      }
-
-      const qData = await qResponse.json();
-      
-      if (qData.error) {
-        throw new Error(qData.error);
-      }
-
-      // Handle warnings gracefully (partial data)
-      if (qData.warning) {
-        console.warn("API Warning:", qData.warning);
-      }
-
-      setQuote(qData);
-
-      // Fetch History independently
+    const fetchIndicators = async () => {
       try {
-        const sixMonthsAgo = Math.floor(Date.now() / 1000) - (180 * 24 * 60 * 60);
-        const hRes = await fetch(`/api/history/${encodedSymbol}?period1=${sixMonthsAgo}`);
-        if (hRes.ok) {
-          const hData = await hRes.json();
-          if (Array.isArray(hData)) {
-            const mapped = hData.filter(d => d && d.date).map((d: any) => ({
-              ...d,
-              date: safeFormat(d.date, 'MMM dd'),
-            }));
-            setHistory(mapped);
-            // Trigger AI analysis even with partial history
-            analyzeWithAI(qData, mapped.slice(-30));
-          } else {
-            // No history, still try analysis with just quote
-            analyzeWithAI(qData, []);
-          }
+        const { data, error } = await supabase.from('excellence_indicators').select('*');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          const processed = data.map(docData => {
+            const originalInd = INDICATORS_DATA.find(ind => ind.title === docData.title);
+            return { 
+              ...docData, 
+              docId: docData.id,
+              icon: originalInd?.icon || Target
+            };
+          });
+          setIndicators(processed);
         } else {
-          // History fetch failed, still try analysis
-          analyzeWithAI(qData, []);
+          setIndicators(INDICATORS_DATA.map((ind, i) => ({ ...ind, id: i + 1, docId: (i + 1).toString() })));
         }
-      } catch (err) { 
-        console.warn("History fetch failed silenty:", err);
-        analyzeWithAI(qData, []); 
+      } catch (error) {
+        console.warn("Supabase indicators table not found, using local defaults");
+        setIndicators(INDICATORS_DATA.map((ind, i) => ({ ...ind, id: i + 1, docId: (i + 1).toString() })));
+      } finally {
+        setLoading(prev => ({ ...prev, indicators: false }));
       }
+    };
 
-      // Fetch News independently
+    const fetchGoals = async () => {
       try {
-        const nRes = await fetch(`/api/news/${s}`);
-        if (nRes.ok) {
-          const nData = await nRes.json();
-          setNews(nData);
+        const { data, error } = await supabase.from('excellence_goals').select('*');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setOperationalGoals(data.map(d => ({ ...d, docId: d.id })));
+        } else {
+          setOperationalGoals(INITIAL_OPERATIONAL_GOALS.map((goal, i) => ({ ...goal, id: i + 1, docId: (i + 1).toString() })));
         }
-      } catch (err) { console.warn("Failed to fetch news:", err); }
+      } catch (error) {
+        console.warn("Supabase goals table not found, using local defaults");
+        setOperationalGoals(INITIAL_OPERATIONAL_GOALS.map((goal, i) => ({ ...goal, id: i + 1, docId: (i + 1).toString() })));
+      } finally {
+        setLoading(prev => ({ ...prev, goals: false }));
+      }
+    };
 
-    } catch (err: any) {
-      console.error("Fetch Data Error:", err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const analyzeWithAI = async (currentQuote: StockQuote, recentHistory: HistoricalData[]) => {
-    if (!ai) {
-      console.warn("AI Analysis skipped: Gemini API Key not configured.");
-      setAnalysis({
-        sentiment: 'neutral',
-        patterns: ["خدمة الذكاء الاصطناعي غير مفعلة"],
-        reasoning: "يرجى التأكد من إعداد مفتاح API الخاص بـ Gemini في إعدادات المشروع لتفعيل التحليلات الذكية."
-      });
-      return;
-    }
-    setAnalyzing(true);
-    setAnalysis(null); // Clear previous
-    try {
-      const historySummary = recentHistory.length > 0 
-        ? recentHistory.map(h => `${h.date}: ${h.close}`).join(', ')
-        : "بيانات التاريخ غير متوفرة";
-
-      const prompt = `
-        بصفتك محلل مالي خبير، قم بتحليل السهم التالي وقدم توصية دقيقة.
-        السهم: ${currentQuote.longName || currentQuote.symbol}
-        السعر: ${currentQuote.regularMarketPrice} ${currentQuote.currency}
-        الأداء الأخير: ${historySummary}
-
-        يجب أن يكون الرد بتنسيق JSON حصراً:
-        {
-          "sentiment": "positive" | "negative" | "neutral",
-          "patterns": ["نموذج فني 1", "نموذج فني 2"],
-          "entryPrice": رقم,
-          "exitTarget": رقم,
-          "reboundPoint": رقم,
-          "reasoning": "شرح التحليل الفني باختصار باللغة العربية"
+    const fetchHistory = async () => {
+      try {
+        const { data, error } = await supabase.from('excellence_history').select('*').order('date', { ascending: false });
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setHistory(data.map(d => ({ ...d, docId: d.id })) as any);
+        } else {
+          setHistory([]);
         }
-      `;
+      } catch (error) {
+        console.warn("Supabase history table not found, using local defaults");
+        setHistory([]);
+      } finally {
+        setLoading(prev => ({ ...prev, history: false }));
+      }
+    };
 
-      const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          systemInstruction: "أنت محلل تقني محترف وموجز. أجب دائماً بتنسيق JSON صالح فقط."
+    const fetchStats = async () => {
+      try {
+        const { data, error } = await supabase.from('excellence_stats').select('*');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          const statsData: any = { ...SCHOOL_STATS };
+          data.forEach((d) => {
+            const category = d.id;
+            const items = d.items || [];
+            if (statsData[category]) {
+              statsData[category] = statsData[category].map((initialItem: any) => {
+                const updatedItem = items.find((item: any) => item.label === initialItem.label);
+                return updatedItem ? { ...initialItem, value: updatedItem.value } : initialItem;
+              });
+            }
+          });
+          setSchoolStats(statsData);
+        } else {
+          setSchoolStats(SCHOOL_STATS);
         }
-      });
+      } catch (error) {
+        console.warn("Supabase stats table not found, using local defaults");
+        setSchoolStats(SCHOOL_STATS);
+      } finally {
+        setLoading(prev => ({ ...prev, stats: false }));
+      }
+    };
 
-      let text = result.text || "{}";
-      // Sanitize JSON response if needed (handle markdown blocks if any)
-      text = text.replace(/```json/g, "").replace(/```/g, "").trim();
-      
-      const parsedAnalysis = JSON.parse(text);
-      setAnalysis(parsedAnalysis);
-    } catch (err) {
-      console.error("AI Analysis failed:", err);
-      setAnalysis({
-        sentiment: 'neutral',
-        patterns: ["خطأ في المعالجة"],
-        reasoning: "تعذر الحصول على تحليل فني حالياً. يرجى المحاولة مرة أخرى لاحقاً."
-      });
-    } finally {
-      setAnalyzing(false);
-    }
-  };
+    const fetchAttachments = async () => {
+      try {
+        const { data, error } = await supabase.from('excellence_attachments').select('*');
+        if (error) throw error;
+        if (data) setAttachments(data.map(d => ({ ...d, docId: d.id })));
+      } catch (error) {
+        console.warn("Supabase attachments table not found");
+      } finally {
+        setLoading(prev => ({ ...prev, attachments: false }));
+      }
+    };
+
+    const fetchReports = async () => {
+      try {
+        const { data, error } = await supabase.from('excellence_reports').select('*');
+        if (error) throw error;
+        if (data) setReports(data.map(d => ({ ...d, docId: d.id })));
+      } catch (error) {
+        console.warn("Supabase reports table not found");
+      }
+    };
+
+    const fetchMembers = async () => {
+      try {
+        const { data, error } = await supabase.from('excellence_members').select('*');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setMembers(data.map(d => ({ ...d, docId: d.id })));
+        } else {
+          setMembers(COMMITTEE_MEMBERS.map((m, i) => ({ ...m, id: i + 1, docId: (i + 1).toString() })));
+        }
+      } catch (error) {
+        console.warn("Supabase members table not found, using local defaults");
+        setMembers(COMMITTEE_MEMBERS.map((m, i) => ({ ...m, id: i + 1, docId: (i + 1).toString() })));
+      }
+    };
+
+    const fetchSettings = async () => {
+      try {
+        const { data, error } = await supabase.from('excellence_settings').select('*').eq('id', 'general').single();
+        if (error && error.code !== 'PGRST116') throw error;
+        if (data) setSettings(data as any);
+      } catch (error) {
+        console.warn("Supabase settings table not found");
+      }
+    };
+
+    const fetchTasks = async () => {
+      try {
+        const { data, error } = await supabase.from('excellence_tasks').select('*').order('created_at', { ascending: true });
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setTasks(data.map(d => d.text));
+        } else {
+          setTasks(TASKS);
+        }
+      } catch (error) {
+        console.warn("Supabase tasks table not found or error, using local defaults");
+        setTasks(TASKS);
+      }
+    };
+
+    fetchIndicators();
+    fetchGoals();
+    fetchHistory();
+    fetchStats();
+    fetchAttachments();
+    fetchReports();
+    fetchMembers();
+    fetchSettings();
+    fetchTasks();
+
+    // Real-time subscriptions
+    const channel = supabase.channel('excellence_changes')
+      .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+        fetchIndicators();
+        fetchGoals();
+        fetchHistory();
+        fetchStats();
+        fetchAttachments();
+        fetchReports();
+        fetchMembers();
+        fetchSettings();
+        fetchTasks();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthReady]);
 
   useEffect(() => {
-    fetchData(symbol);
-  }, []);
+    // We removed automatic initializeData() to allow users to clear data permanently.
+    // Data can still be initialized manually via the settings button.
+  }, [user, isAuthReady]);
 
-  const handleStockChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selected = COMMON_STOCKS.find(s => s.value === e.target.value);
-    if (selected) {
-      setSymbol(selected.value);
-      setMarket(selected.market as any);
-      setTvSymbol(selected.tv);
-      fetchData(selected.value);
+  const averageProgress = manualAverageProgress !== null 
+    ? manualAverageProgress 
+    : indicators.length > 0 
+      ? Math.round(indicators.reduce((acc, curr) => acc + (curr.progress || 0), 0) / indicators.length)
+      : 0;
+
+  const saveSnapshot = async () => {
+    if (!user) return;
+    try {
+      const newSnapshot = {
+        date: new Date().toISOString(),
+        indicators: JSON.parse(JSON.stringify(indicators)),
+        average: averageProgress
+      };
+      const { error } = await supabase.from('excellence_history').insert(newSnapshot);
+      if (error) throw error;
+    } catch (error) {
+      handleSupabaseError(error, OperationType.CREATE, 'excellence_history');
     }
   };
 
-  const isPositive = quote && (quote.regularMarketChange ?? 0) >= 0;
+  const getIndicatorChange = (index: number) => {
+    if (history.length === 0 || !indicators[index]) return 0;
+    const lastSnapshot = history[0];
+    const prevInd = lastSnapshot.indicators.find((ind: any) => ind.title === indicators[index].title);
+    return prevInd ? indicators[index].progress - prevInd.progress : 0;
+  };
+
+  const getAverageChange = () => {
+    if (history.length === 0) return 0;
+    return averageProgress - history[0].average;
+  };
+
+  const getPerformanceStatus = (value: number) => {
+    if (value <= 49) return { label: 'تهيئة', color: 'text-[#ff0000]', bg: 'bg-[#ff0000]', hex: '#ff0000' };
+    if (value <= 74) return { label: 'انطلاق', color: 'text-[#ffc000]', bg: 'bg-[#ffc000]', hex: '#ffc000' };
+    if (value <= 89) return { label: 'تقدم', color: 'text-[#4472c4]', bg: 'bg-[#4472c4]', hex: '#4472c4' };
+    return { label: 'تميز', color: 'text-[#00b050]', bg: 'bg-[#00b050]', hex: '#00b050' };
+  };
+
+  const status = getPerformanceStatus(averageProgress);
+
+  // Gauge Chart Component
+  const GaugeChart = ({ value }: { value: number }) => {
+    const centerX = 100;
+    const centerY = 110;
+    const radius = 70;
+    const normalizedValue = Math.min(100, Math.max(0, value));
+    
+    const segments = [
+      { label: 'تهيئة', start: 0, end: 49, color: '#ff0000' },
+      { label: 'انطلاق', start: 50, end: 74, color: '#ffc000' },
+      { label: 'تقدم', start: 75, end: 89, color: '#4472c4' },
+      { label: 'تميز', start: 90, end: 100, color: '#00b050' }
+    ];
+
+    const polarToCartesian = (cx: number, cy: number, r: number, angleInDegrees: number) => {
+      const angleInRadians = (angleInDegrees * Math.PI) / 180.0;
+      return {
+        x: cx + r * Math.cos(angleInRadians),
+        y: cy + r * Math.sin(angleInRadians)
+      };
+    };
+
+    const status = getPerformanceStatus(normalizedValue);
+    const indicatorAngle = (normalizedValue / 100) * 180 - 180;
+    const indicatorPos = polarToCartesian(centerX, centerY, radius, indicatorAngle);
+
+    return (
+      <div className="flex flex-col items-center w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100">
+        {/* Header */}
+        <div className="w-full bg-[#0b2633] py-5 text-center">
+          <h2 className="text-white text-xl font-bold tracking-tight">نتيجة مؤشر الأداء العام</h2>
+        </div>
+
+        <div className="relative w-full h-80 flex flex-col items-center justify-center pt-10 pb-6">
+          <svg viewBox="0 0 200 140" className="w-full h-full overflow-visible">
+            {/* Background Track */}
+            <path
+              d={`M ${centerX - radius} ${centerY} A ${radius} ${radius} 0 0 1 ${centerX + radius} ${centerY}`}
+              fill="none"
+              stroke="#f1f5f9"
+              strokeWidth="24"
+              strokeLinecap="round"
+            />
+
+            {/* Colored Segments */}
+            {segments.map((seg, i) => {
+              const startAngle = (seg.start / 100) * 180 - 180;
+              const endAngle = (seg.end / 100) * 180 - 180;
+              const startPos = polarToCartesian(centerX, centerY, radius, startAngle);
+              const endPos = polarToCartesian(centerX, centerY, radius, endAngle);
+              
+              return (
+                <path
+                  key={i}
+                  d={`M ${startPos.x} ${startPos.y} A ${radius} ${radius} 0 0 1 ${endPos.x} ${endPos.y}`}
+                  fill="none"
+                  stroke={seg.color}
+                  strokeWidth="24"
+                  strokeLinecap="butt"
+                  className="transition-all duration-500"
+                  style={{ opacity: normalizedValue >= seg.start ? 1 : 0.2 }}
+                />
+              );
+            })}
+
+            {/* Progress Indicator (The "Glow" on the arc) */}
+            <motion.g
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+            >
+              {/* Outer Glow */}
+              <circle
+                cx={indicatorPos.x}
+                cy={indicatorPos.y}
+                r={16}
+                fill={status.hex}
+                fillOpacity="0.2"
+              />
+              {/* Main Indicator */}
+              <circle
+                cx={indicatorPos.x}
+                cy={indicatorPos.y}
+                r={10}
+                fill="white"
+                stroke={status.hex}
+                strokeWidth="4"
+                className="shadow-lg"
+              />
+              <circle
+                cx={indicatorPos.x}
+                cy={indicatorPos.y}
+                r={4}
+                fill={status.hex}
+              />
+            </motion.g>
+
+            {/* Ticks and Labels */}
+            {[0, 25, 50, 75, 100].map((tick) => {
+              const angle = (tick / 100) * 180 - 180;
+              const pos = polarToCartesian(centerX, centerY, radius + 25, angle);
+              return (
+                <text
+                  key={tick}
+                  x={pos.x}
+                  y={pos.y}
+                  fill="#94a3b8"
+                  fontSize="8"
+                  fontWeight="bold"
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                >
+                  {tick}%
+                </text>
+              );
+            })}
+
+            {/* Status Labels */}
+            {segments.map((seg, i) => {
+              const midAngle = ((seg.start + seg.end) / 2 / 100) * 180 - 180;
+              const labelPos = polarToCartesian(centerX, centerY, radius, midAngle);
+              return (
+                <text
+                  key={i}
+                  x={labelPos.x}
+                  y={labelPos.y}
+                  fill="white"
+                  fontSize="7"
+                  fontWeight="black"
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  className="transition-colors duration-500 drop-shadow-md"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {seg.label}
+                </text>
+              );
+            })}
+
+            {/* Decorative Center */}
+            <circle cx={centerX} cy={centerY} r={20} fill="#f8fafc" />
+            
+            {/* Indicator Needle */}
+            <motion.g
+              initial={{ rotate: -180 }}
+              animate={{ rotate: (value / 100) * 180 - 180 }}
+              transition={{ type: "spring", damping: 15, stiffness: 60 }}
+              style={{ originX: `${centerX}px`, originY: `${centerY}px` }}
+            >
+              {/* Outer Glow */}
+              <circle cx={centerX} cy={centerY} r={12} fill={status.color} className="opacity-20 blur-[4px]" />
+              
+              {/* Arm Shadow */}
+              <line 
+                x1={centerX} y1={centerY} 
+                x2={centerX + (radius - 15)} y2={centerY} 
+                stroke="black" strokeWidth="6" strokeLinecap="round" 
+                className="opacity-10"
+                style={{ transform: 'translate(2px, 2px)' }}
+              />
+              
+              {/* Main Arm */}
+              <line 
+                x1={centerX} y1={centerY} 
+                x2={centerX + (radius - 15)} y2={centerY} 
+                stroke={status.color} strokeWidth="5" strokeLinecap="round" 
+                className="drop-shadow-sm"
+              />
+              
+              {/* Tip Pivot */}
+              <circle cx={centerX + (radius - 15)} cy={centerY} r={4} fill={status.color} />
+              <circle cx={centerX + (radius - 15)} cy={centerY} r={2} fill="white" />
+              
+              {/* Base Pivot */}
+              <circle cx={centerX} cy={centerY} r={8} fill={status.color} className="drop-shadow-md" />
+              <circle cx={centerX} cy={centerY} r={4} fill="#0b2633" />
+            </motion.g>
+
+            <text
+              x={centerX}
+              y={centerY - 5}
+              textAnchor="middle"
+              fill="#64748b"
+              fontSize="6"
+              fontWeight="bold"
+            >
+              مستوى
+            </text>
+            <text
+              x={centerX}
+              y={centerY + 5}
+              textAnchor="middle"
+              fill="#64748b"
+              fontSize="6"
+              fontWeight="bold"
+            >
+              الإنجاز
+            </text>
+          </svg>
+        </div>
+
+        {/* Footer */}
+        <div className="w-full bg-[#0b2633] py-6 text-center">
+          <div className="flex flex-col items-center">
+            <span className="text-white text-5xl font-black tracking-tighter mb-2">{value.toFixed(2)}%</span>
+            <div className={`flex items-center gap-3 px-6 py-2 rounded-full ${status.bg} bg-opacity-20 border border-white/10`}>
+              <span className={`text-sm font-bold ${status.color}`}>{status.label}</span>
+              <div className={`w-2 h-2 rounded-full ${status.bg} animate-pulse`} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const tabs = [
+    { id: 'overview', label: 'الرئيسية', icon: LayoutDashboard },
+    { id: 'members', label: 'أعضاء اللجنة', icon: Users },
+    { id: 'tasks', label: 'المهام', icon: ClipboardList },
+    { id: 'stats', label: 'الإحصائيات', icon: BarChart3 },
+    { id: 'indicators', label: 'المؤشرات', icon: Target },
+    { id: 'goals', label: 'الأهداف التشغيلية', icon: Milestone },
+    { id: 'attachments', label: 'المرفقات', icon: FolderOpen },
+    { id: 'reports', label: 'التقارير المحمية', icon: ShieldCheck },
+    { id: 'admin', label: 'لوحة التحكم', icon: Settings },
+  ];
+
+  const handleUpdateProgress = (index: number, value: number) => {
+    const newIndicators = [...indicators];
+    newIndicators[index].progress = Math.min(100, Math.max(0, value));
+    setIndicators(newIndicators);
+  };
+
+  const handleAddGoal = async () => {
+    try {
+      setToast({ message: 'جاري إضافة هدف جديد...', type: 'success' });
+      const newGoal = {
+        mainGoal: "هدف جديد",
+        subGoals: [{ text: "", baseline: 0, target: 0, change: 0 }],
+        baseline: 0,
+        target: 0,
+        changeLastYear: 0
+      };
+      const { data, error } = await supabase.from('excellence_goals').insert(newGoal).select().single();
+      if (error) throw error;
+      if (data) setOperationalGoals(prev => [...prev, { ...data, docId: data.id }]);
+      setToast({ message: 'تمت إضافة الهدف بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.CREATE, 'excellence_goals');
+    }
+  };
+
+  const handleUpdateGoal = (id: number, field: string, value: any) => {
+    setOperationalGoals(operationalGoals.map(goal => 
+      goal.id === id ? { ...goal, [field]: value } : goal
+    ));
+  };
+
+  const handleSaveGoals = async () => {
+    try {
+      setToast({ message: 'جاري حفظ الأهداف...', type: 'success' });
+      for (const goal of operationalGoals) {
+        if (goal.docId) {
+          const { docId, ...rest } = goal;
+          const { error } = await supabase.from('excellence_goals').update(rest).eq('id', docId);
+          if (error) throw error;
+        }
+      }
+      setToast({ message: 'تم حفظ الأهداف بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.UPDATE, 'excellence_goals');
+    }
+  };
+
+  const handleAddSubGoal = (goalId: number) => {
+    setOperationalGoals(operationalGoals.map(goal => 
+      goal.id === goalId ? { ...goal, subGoals: [...goal.subGoals, { text: "", baseline: 0, target: 0, change: 0 }] } : goal
+    ));
+  };
+
+  const handleUpdateSubGoal = (goalId: number, subIndex: number, field: string, value: any) => {
+    setOperationalGoals(operationalGoals.map(goal => 
+      goal.id === goalId ? { 
+        ...goal, 
+        subGoals: goal.subGoals.map((sg: any, i: number) => i === subIndex ? { ...sg, [field]: value } : sg) 
+      } : goal
+    ));
+  };
+
+  const handleDeleteSubGoal = (goalId: number, subIndex: number) => {
+    setOperationalGoals(operationalGoals.map(goal => 
+      goal.id === goalId ? { 
+        ...goal, 
+        subGoals: goal.subGoals.filter((_, i) => i !== subIndex) 
+      } : goal
+    ));
+  };
+
+  const handleDeleteGoal = async (id: string) => {
+    try {
+      const { error } = await supabase.from('excellence_goals').delete().eq('id', id);
+      if (error) throw error;
+    } catch (error) {
+      handleSupabaseError(error, OperationType.DELETE, `excellence_goals/${id}`);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        setToast({ message: 'جاري رفع الملف...', type: 'success' });
+        
+        // 1. Upload to Supabase Storage
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+        const filePath = `excellence/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('uploads')
+          .upload(filePath, file);
+
+        if (uploadError) throw uploadError;
+
+        // 2. Get Public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('uploads')
+          .getPublicUrl(filePath);
+
+        // 3. Save Metadata to Database
+        const newAttachment = {
+          name: file.name,
+          type: file.name.split('.').pop()?.toUpperCase() || 'FILE',
+          size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+          date: new Date().toISOString().split('T')[0],
+          category: "مرفقات جديدة",
+          url: publicUrl,
+          file_path: filePath
+        };
+        
+        const { data, error: dbError } = await supabase.from('excellence_attachments').insert(newAttachment).select().single();
+        if (dbError) throw dbError;
+        
+        if (data) {
+          setAttachments(prev => [...prev, { ...data, docId: data.id }]);
+        }
+        
+        setToast({ message: 'تم رفع الملف بنجاح', type: 'success' });
+      } catch (error: any) {
+        console.error("Upload error:", error);
+        setToast({ 
+          message: `خطأ في رفع الملف: ${error?.message || 'تأكد من وجود الجداول في قاعدة بالبيانات'}`, 
+          type: 'error' 
+        });
+      }
+    }
+  };
+
+  const handleDeleteAttachment = async (id: string) => {
+    try {
+      setToast({ message: 'جاري حذف الملف...', type: 'success' });
+      
+      // 1. Get file info first to delete from storage
+      const { data: fileInfo, error: fetchError } = await supabase
+        .from('excellence_attachments')
+        .select('file_path')
+        .eq('id', id)
+        .single();
+        
+      if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+
+      // 2. Delete from Storage if path exists
+      if (fileInfo?.file_path) {
+        const { error: storageError } = await supabase.storage
+          .from('uploads')
+          .remove([fileInfo.file_path]);
+        if (storageError) console.error("Storage delete error:", storageError);
+      }
+
+      // 3. Delete from Database
+      const { error: dbError } = await supabase.from('excellence_attachments').delete().eq('id', id);
+      if (dbError) throw dbError;
+      
+      setToast({ message: 'تم حذف الملف بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.DELETE, `excellence_attachments/${id}`);
+    }
+  };
+
+  const handleSaveIndicators = async () => {
+    try {
+      setToast({ message: 'جاري حفظ المؤشرات...', type: 'success' });
+      for (const ind of indicators) {
+        if (ind.docId) {
+          const { docId, icon, ...rest } = ind;
+          const { error } = await supabase.from('excellence_indicators').update(rest).eq('id', docId);
+          if (error) throw error;
+        }
+      }
+      setToast({ message: 'تم حفظ المؤشرات بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.UPDATE, 'excellence_indicators');
+    }
+  };
+
+  const handleAddReport = async (name: string, password: string, file: File) => {
+    try {
+      setToast({ message: 'جاري رفع التقرير...', type: 'success' });
+      
+      const fileExt = file.name.split('.').pop();
+      const fileName = `report-${Date.now()}.${fileExt}`;
+      const filePath = `reports/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('uploads')
+        .upload(filePath, file);
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('uploads')
+        .getPublicUrl(filePath);
+
+      const { error } = await supabase.from('excellence_reports').insert({
+        name,
+        password,
+        date: new Date().toISOString().split('T')[0],
+        url: publicUrl,
+        file_path: filePath
+      });
+      if (error) throw error;
+      
+      // Force refresh data
+      const { data: updatedReports, error: fetchError } = await supabase.from('excellence_reports').select('*');
+      if (!fetchError && updatedReports) {
+        setReports(updatedReports.map(d => ({ ...d, docId: d.id })));
+      }
+
+      setToast({ message: 'تمت إضافة التقرير بنجاح', type: 'success' });
+    } catch (error: any) {
+      console.error(error);
+      setToast({ 
+        message: `خطأ في إضافة التقرير: ${error?.message || 'تأكد من وجود الجداول في قاعدة البيانات'}`, 
+        type: 'error' 
+      });
+    }
+  };
+
+  const handleDeleteReport = async (id: string) => {
+    try {
+      setToast({ message: 'جاري حذف التقرير...', type: 'success' });
+      
+      // 1. Get file path
+      const { data: reportInfo } = await supabase.from('excellence_reports').select('file_path').eq('id', id).single();
+      
+      // 2. Delete from Storage
+      if (reportInfo?.file_path) {
+        await supabase.storage.from('uploads').remove([reportInfo.file_path]);
+      }
+
+      // 3. Delete from DB
+      const { error } = await supabase.from('excellence_reports').delete().eq('id', id);
+      if (error) throw error;
+      setToast({ message: 'تم حذف التقرير بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.DELETE, `excellence_reports/${id}`);
+    }
+  };
+
+  const handleUnlockReport = (id: string, password: string, correctPassword: string) => {
+    if (password === correctPassword) {
+      setUnlockedReports(prev => ({ ...prev, [id]: true }));
+    } else {
+      alert('كلمة المرور غير صحيحة');
+    }
+  };
+
+  const handleClearAllData = async () => {
+    if (!user) return;
+    setShowClearConfirm(true);
+  };
+
+  const executeClearAllData = async () => {
+    setShowClearConfirm(false);
+    try {
+      setToast({ message: 'جاري مسح البيانات...', type: 'success' });
+      const tables = [
+        'excellence_indicators',
+        'excellence_goals',
+        'excellence_stats',
+        'excellence_attachments',
+        'excellence_history',
+        'excellence_reports',
+        'excellence_members'
+      ];
+
+      for (const tableName of tables) {
+        const { error } = await supabase.from(tableName).delete().neq('id', '0'); // Delete all rows
+        if (error) throw error;
+      }
+      
+      setToast({ message: 'تم مسح كافة البيانات بنجاح', type: 'success' });
+      setTimeout(() => window.location.reload(), 1000);
+    } catch (error) {
+      console.error("Error clearing data:", error);
+      setToast({ message: 'فشل مسح البيانات', type: 'error' });
+    }
+  };
+
+  const handleUpdateIndicator = (id: string, field: string, value: any) => {
+    setIndicators(prev => prev.map(ind => ind.id === id ? { ...ind, [field]: value } : ind));
+  };
+
+  const handleSaveIndicator = async (id: string) => {
+    const indicator = indicators.find(ind => ind.id === id);
+    if (!indicator) return;
+    try {
+      setToast({ message: 'جاري حفظ المؤشر...', type: 'success' });
+      const { error } = await supabase.from('excellence_indicators').update({
+        title: indicator.title,
+        initiative: indicator.initiative,
+        description: indicator.description,
+        progress: indicator.progress
+      }).eq('id', id);
+      if (error) throw error;
+      setToast({ message: 'تم حفظ المؤشر بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.UPDATE, 'excellence_indicators');
+    }
+  };
+
+  const handleAddIndicator = async () => {
+    try {
+      setToast({ message: 'جاري إضافة مؤشر جديد...', type: 'success' });
+      const newInd = {
+        title: "مؤشر جديد",
+        initiative: "مبادرة جديدة",
+        description: "وصف المؤشر الجديد",
+        progress: 0,
+        color: "text-madrasati-green",
+        bgColor: "bg-madrasati-green/10"
+      };
+      const { data, error } = await supabase.from('excellence_indicators').insert(newInd).select().single();
+      if (error) throw error;
+      if (data) {
+        setIndicators(prev => [...prev, { ...data, docId: data.id, icon: Target }]);
+      }
+      setToast({ message: 'تم إضافة المؤشر بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.CREATE, 'excellence_indicators');
+    }
+  };
+
+  const handleDeleteIndicator = async (id: string) => {
+    if (!confirm('هل أنت متأكد من حذف هذا المؤشر؟')) return;
+    try {
+      setToast({ message: 'جاري حذف المؤشر...', type: 'success' });
+      const { error } = await supabase.from('excellence_indicators').delete().eq('id', id);
+      if (error) throw error;
+      setIndicators(prev => prev.filter(ind => ind.id !== id));
+      setToast({ message: 'تم حذف المؤشر بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.DELETE, `excellence_indicators/${id}`);
+    }
+  };
+
+  const handleDeleteHistory = async (id: string) => {
+    try {
+      setToast({ message: 'جاري حذف السجل...', type: 'success' });
+      const { error } = await supabase.from('excellence_history').delete().eq('id', id);
+      if (error) throw error;
+      setHistory(prev => prev.filter(h => h.docId !== id));
+      setToast({ message: 'تم حذف السجل بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.DELETE, `excellence_history/${id}`);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      localStorage.removeItem('excellence_admin_session');
+      setUser(null);
+      setActiveTab('overview');
+    } catch (error) {
+      console.error("Error logging out:", error);
+    }
+  };
+
+  const handleUpdateStat = (category: string, index: number, field: 'label' | 'value', newValue: string) => {
+    if (!schoolStats) return;
+    const updatedItems = schoolStats[category].map((stat: any, i: number) => 
+      i === index ? { ...stat, [field]: newValue } : stat
+    );
+    
+    setSchoolStats({
+      ...schoolStats,
+      [category]: updatedItems
+    });
+  };
+
+  const handleSaveStats = async (category: string) => {
+    if (!schoolStats) return;
+    try {
+      setToast({ message: 'جاري حفظ الإحصائيات...', type: 'success' });
+      const sanitizedItems = schoolStats[category].map(({ icon, ...rest }: any) => rest);
+      const { error } = await supabase.from('excellence_stats').upsert({ id: category, items: sanitizedItems });
+      if (error) throw error;
+      setToast({ message: 'تم حفظ الإحصائيات بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.UPDATE, `excellence_stats/${category}`);
+    }
+  };
+
+  const handleAddStatItem = async (category: string) => {
+    if (!schoolStats) return;
+    const newItem = { label: "بيان جديد", value: "-", icon: Hash };
+    const updatedItems = [...schoolStats[category], newItem];
+    
+    setSchoolStats({
+      ...schoolStats,
+      [category]: updatedItems
+    });
+
+    try {
+      const sanitizedItems = updatedItems.map(({ icon, ...rest }: any) => rest);
+      const { error } = await supabase.from('excellence_stats').upsert({ id: category, items: sanitizedItems });
+      if (error) throw error;
+      setToast({ message: 'تم إضافة البيان بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.UPDATE, `excellence_stats/${category}`);
+    }
+  };
+
+  const handleDeleteStatItem = async (category: string, index: number) => {
+    if (!schoolStats || !confirm('هل أنت متأكد من حذف هذا البيان؟')) return;
+    const updatedItems = schoolStats[category].filter((_: any, i: number) => i !== index);
+    
+    setSchoolStats({
+      ...schoolStats,
+      [category]: updatedItems
+    });
+
+    try {
+      const sanitizedItems = updatedItems.map(({ icon, ...rest }: any) => rest);
+      const { error } = await supabase.from('excellence_stats').upsert({ id: category, items: sanitizedItems });
+      if (error) throw error;
+      setToast({ message: 'تم حذف البيان بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.UPDATE, `excellence_stats/${category}`);
+    }
+  };
+
+  const handleAddTask = async () => {
+    try {
+      const newTask = { text: "مهمة جديدة" };
+      const { error } = await supabase.from('excellence_tasks').insert(newTask);
+      if (error) throw error;
+      setToast({ message: 'تم إضافة المهمة بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.CREATE, 'excellence_tasks');
+    }
+  };
+
+  const handleUpdateTask = (index: number, value: string) => {
+    setTasks(prev => prev.map((t, i) => i === index ? value : t));
+  };
+
+  const handleSaveTasks = async () => {
+    try {
+      setToast({ message: 'جاري حفظ المهام...', type: 'success' });
+      // This is a bit complex because we don't have IDs in the state easily
+      // Let's fetch them first or just delete and re-insert (not ideal but simple)
+      // Better: fetch all and update
+      const { data } = await supabase.from('excellence_tasks').select('id').order('created_at', { ascending: true });
+      if (data) {
+        for (let i = 0; i < tasks.length; i++) {
+          if (data[i]) {
+            await supabase.from('excellence_tasks').update({ text: tasks[i] }).eq('id', data[i].id);
+          } else {
+            await supabase.from('excellence_tasks').insert({ text: tasks[i] });
+          }
+        }
+        // Delete extra tasks
+        if (data.length > tasks.length) {
+          const idsToDelete = data.slice(tasks.length).map(d => d.id);
+          await supabase.from('excellence_tasks').delete().in('id', idsToDelete);
+        }
+      }
+      setToast({ message: 'تم حفظ المهام بنجاح', type: 'success' });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.UPDATE, 'excellence_tasks');
+    }
+  };
+
+  const handleDeleteTask = async (index: number) => {
+    if (!confirm('هل أنت متأكد من حذف هذه المهمة؟')) return;
+    try {
+      const { data } = await supabase.from('excellence_tasks').select('id').order('created_at', { ascending: true });
+      if (data && data[index]) {
+        const { error } = await supabase.from('excellence_tasks').delete().eq('id', data[index].id);
+        if (error) throw error;
+        setTasks(prev => prev.filter((_, i) => i !== index));
+        setToast({ message: 'تم حذف المهمة بنجاح', type: 'success' });
+      }
+    } catch (error) {
+      handleSupabaseError(error, OperationType.DELETE, 'excellence_tasks');
+    }
+  };
+
+  const handleUpdateMember = async (index: number, field: string, value: string) => {
+    const newMembers = [...members];
+    newMembers[index] = { ...newMembers[index], [field]: value };
+    setMembers(newMembers);
+  };
+
+  const handleAddMember = async () => {
+    try {
+      console.log("Attempting to add new member...");
+      setToast({ message: 'جاري إضافة عضو جديد...', type: 'success' });
+      const newMember = {
+        role: "عضو جديد",
+        title: "مسمى العضو",
+        description: "وصف مهام العضو",
+        color: "bg-slate-500"
+      };
+      const { data, error } = await supabase.from('excellence_members').insert(newMember).select().single();
+      
+      if (error) throw error;
+      console.log("Member added successfully with ID:", data.id);
+      setMembers(prev => [...prev, { ...data, docId: data.id }]);
+      setToast({ message: 'تمت إضافة العضو بنجاح', type: 'success' });
+    } catch (error: any) {
+      console.error("Failed to add member:", error);
+      const errorMsg = error?.message?.includes('permission-denied') 
+        ? 'عذراً، ليس لديك صلاحية الإضافة. تأكد من تسجيل الدخول بالبريد الصحيح.' 
+        : `فشل إضافة العضو: ${error.message || 'خطأ غير معروف'}`;
+      setToast({ message: errorMsg, type: 'error' });
+      handleSupabaseError(error, OperationType.CREATE, 'excellence_members');
+    }
+  };
+
+  const handleDeleteMember = async (docId: string) => {
+    try {
+      const { error } = await supabase.from('excellence_members').delete().eq('id', docId);
+      if (error) throw error;
+    } catch (error) {
+      handleSupabaseError(error, OperationType.DELETE, `excellence_members/${docId}`);
+    }
+  };
+
+  const handleSaveMembers = async () => {
+    try {
+      setToast({ message: 'جاري حفظ التعديلات...', type: 'success' });
+      for (const member of members) {
+        if (member.docId) {
+          const { docId, ...rest } = member;
+          const { error } = await supabase.from('excellence_members').update(rest).eq('id', docId);
+          if (error) throw error;
+        }
+      }
+      setToast({ message: 'تم حفظ التعديلات بنجاح', type: 'success' });
+      setTimeout(() => setActiveTab('members'), 1000);
+    } catch (error: any) {
+      const errorMsg = error?.message?.includes('permission-denied') 
+        ? 'عذراً، ليس لديك صلاحية الحفظ. تأكد من قواعد الأمان.' 
+        : `فشل حفظ التعديلات: ${error.message || 'خطأ غير معروف'}`;
+      setToast({ message: errorMsg, type: 'error' });
+      handleSupabaseError(error, OperationType.UPDATE, 'excellence_members');
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-bg text-text-main font-sans selection:bg-accent-blue/30" dir="rtl">
-      {/* Background Decor */}
-      <div className="fixed inset-0 pointer-events-none opacity-20">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,#16181c,transparent)]" />
-      </div>
-
-      {/* Main Content */}
-      <main className="relative max-w-7xl mx-auto px-4 py-8 lg:px-8">
-        {/* Header */}
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12 border-b border-border-custom pb-8">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-accent-blue">PRO-TRADER BURAQ</span>
-              <div className="h-[1px] w-8 bg-accent-blue" />
+    <div className="min-h-screen bg-[#f8f9fa] text-madrasati-dark font-['Cairo']">
+      {/* Top Header - Madrasati Style */}
+      <header className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-[60] flex items-center justify-between px-6 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-madrasati-green rounded-lg flex items-center justify-center text-white shadow-sm">
+              <Award size={24} />
             </div>
-            <h1 className="text-4xl font-bold tracking-tight text-white mb-2">
-              {quote?.shortName || quote?.longName || "براق للتداول"}
-              <span className="text-text-muted text-lg mr-3 font-mono">[{symbol}]</span>
-            </h1>
-            <p className="text-text-muted max-w-lg leading-relaxed font-light">
-              تحليل شامل يعتمد على النماذج الفنية والذكاء الاصطناعي للسوق {market === 'TASI' ? 'السعودي' : 'الأمريكي'}.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={async () => {
-                try {
-                  const res = await fetch('/api/test');
-                  const contentType = res.headers.get("content-type");
-                  if (!contentType || !contentType.includes("application/json")) {
-                    const text = await res.text();
-                    alert(`خطأ: السيرفر لم يرسل بيانات JSON صالحة. الرد كان: ${text.substring(0, 50)}...`);
-                    return;
-                  }
-                  const data = await res.json();
-                  alert(`نتيجة الاختبار: ${data.status} - السعر: ${data.price || 'N/A'}`);
-                } catch (e: any) {
-                  alert(`فشل اختبار الاتصال: ${e.message}`);
-                }
-              }}
-              className="text-[10px] font-mono border border-border-custom hover:border-accent-blue px-3 py-1 rounded-full text-text-muted"
-            >
-              اختبار الاتصال
-            </button>
-
-            {user ? (
-              <div className="flex items-center gap-3 ml-4 bg-surface border border-border-custom pl-4 py-1 rounded-full">
-                <img 
-                  src={user.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${user.email}`} 
-                  alt={user.user_metadata?.full_name || ""} 
-                  className="w-10 h-10 rounded-full border border-accent-blue/50"
-                  referrerPolicy="no-referrer"
-                />
-                <div className="hidden lg:block">
-                  <p className="text-[10px] text-text-muted font-mono">متصل</p>
-                  <p className="text-xs font-bold">{user.user_metadata?.full_name || 'مستخدم'}</p>
-                </div>
-                <button 
-                  onClick={() => logout()}
-                  className="text-[10px] font-mono text-accent-red hover:underline mr-2 border-r border-border-custom pr-2"
-                >
-                  خروج
-                </button>
-              </div>
-            ) : (
-              <button 
-                onClick={() => setIsAuthModalOpen(true)}
-                className="text-xs font-mono border border-border-custom hover:border-accent-blue px-4 py-3 transition-colors ml-4 rounded"
-              >
-                تسجيل الدخول
-              </button>
-            )}
-
-            <div className="relative group">
-              <select 
-                onChange={handleStockChange}
-                value={symbol}
-                className="appearance-none bg-surface border border-border-custom text-white px-6 py-3 rounded focus:outline-none focus:border-accent-blue transition-colors cursor-pointer pr-12 font-mono text-sm min-w-[200px]"
-              >
-                {COMMON_STOCKS.map(s => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-              <ChevronRight className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted pointer-events-none rotate-90" />
-            </div>
-            
-            <button 
-              onClick={() => fetchData(symbol)}
-              disabled={loading}
-              className="bg-accent-blue hover:bg-accent-blue/80 text-white px-6 py-3 font-bold transition-all disabled:opacity-50 flex items-center gap-2 rounded"
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-              تحديث
-            </button>
-          </div>
-        </header>
-
-        {error && (
-          <div className="bg-accent-red/10 border border-accent-red/50 p-4 mb-8 flex items-center gap-3 rounded">
-            <AlertTriangle className="text-accent-red" />
-            <p className="text-red-200 text-sm">{error}</p>
-          </div>
-        )}
-
-        {/* Dashboard Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          
-          {/* Price & Stats Card */}
-          <div className="lg:col-span-1 space-y-8">
-            <div className="bg-surface border border-border-custom p-8 relative overflow-hidden rounded-xl">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-accent-blue/5 blur-3xl -mr-16 -mt-16 rounded-full" />
-              
-              <div className="flex justify-between items-start mb-8">
-                <div>
-                  <p className="text-xs font-mono uppercase tracking-widest text-text-muted mb-1">السعر الحالي</p>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-5xl font-mono font-medium tracking-tighter text-white">
-                      {loading && !quote ? (
-                         <Loader2 className="w-8 h-8 animate-spin text-accent-blue" />
-                      ) : (
-                         quote?.regularMarketPrice?.toLocaleString() || "---"
-                      )}
-                    </span>
-                    <span className="text-text-muted font-mono text-sm">{quote?.currency}</span>
-                  </div>
-                </div>
-                {quote && (
-                  <div className={cn(
-                    "flex items-center gap-1 px-3 py-1 text-xs font-bold rounded-full",
-                    isPositive ? "bg-accent-green/10 text-accent-green" : "bg-accent-red/10 text-accent-red"
-                  )}>
-                    {isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                    {quote.regularMarketChangePercent?.toFixed(2)}%
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 gap-6 pt-6 border-t border-border-custom">
-                <div>
-                  <p className="text-[10px] text-text-muted uppercase mb-1">الأعلى اليوم</p>
-                  <p className="font-mono text-lg text-white">{quote?.regularMarketDayHigh?.toLocaleString() || "---"}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-text-muted uppercase mb-1">الأدنى اليوم</p>
-                  <p className="font-mono text-lg text-white">{quote?.regularMarketDayLow?.toLocaleString() || "---"}</p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-[10px] text-text-muted uppercase mb-1">حجم التداول</p>
-                  <p className="font-mono text-lg text-white">{(quote?.regularMarketVolume || 0).toLocaleString()}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* AI Recommendation Card */}
-            <div className={cn(
-              "p-8 border relative group rounded-xl",
-              analysis?.sentiment === 'positive' ? "bg-accent-green/5 border-accent-green/20" : 
-              analysis?.sentiment === 'negative' ? "bg-accent-red/5 border-accent-red/20" : "bg-surface border-border-custom"
-            )}>
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <Activity className={cn(
-                    "w-5 h-5",
-                    analysis?.sentiment === 'positive' ? "text-accent-green" : 
-                    analysis?.sentiment === 'negative' ? "text-accent-red" : "text-accent-blue"
-                  )} />
-                  <h3 className="text-lg font-bold text-white">توصية الذكاء الاصطناعي</h3>
-                </div>
-                {analyzing && <Loader2 className="w-4 h-4 animate-spin text-accent-blue" />}
-              </div>
-
-              {!analyzing && analysis ? (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-4">
-                    <div className={cn(
-                      "px-4 py-2 text-sm font-bold uppercase tracking-wider rounded",
-                      analysis.sentiment === 'positive' ? "bg-accent-green text-black" : 
-                      analysis.sentiment === 'negative' ? "bg-accent-red text-white" : "bg-gray-700 text-white"
-                    )}>
-                      {analysis.sentiment === 'positive' ? "إيجابي / دخول" : 
-                       analysis.sentiment === 'negative' ? "سلبي / تريث" : "محايد"}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {analysis.patterns.map(p => (
-                        <span key={p} className="text-[10px] bg-white/5 border border-white/10 px-2 py-1 text-text-muted rounded">
-                          {p}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <p className="text-sm text-text-muted leading-relaxed italic">
-                    {analysis.reasoning}
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border-custom">
-                    {analysis.sentiment === 'positive' ? (
-                      <>
-                        <div className="bg-bg p-3 border border-border-custom rounded">
-                          <p className="text-[10px] text-text-muted uppercase mb-1 flex items-center gap-1">
-                            <ArrowRight className="w-2 h-2" /> سعر الدخول المقترح
-                          </p>
-                          <p className="text-xl font-mono text-accent-green">{analysis.entryPrice}</p>
-                        </div>
-                        <div className="bg-bg p-3 border border-border-custom rounded">
-                          <p className="text-[10px] text-text-muted uppercase mb-1 flex items-center gap-1">
-                            <Target className="w-2 h-2" /> الهدف المتوقع
-                          </p>
-                          <p className="text-xl font-mono text-accent-blue">{analysis.exitTarget}</p>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="col-span-2 bg-bg p-3 border border-border-custom rounded">
-                        <p className="text-[10px] text-text-muted uppercase mb-1 flex items-center gap-1">
-                          <AlertTriangle className="w-2 h-2 text-accent-red" /> نقطة الارتداد المتوقعة
-                        </p>
-                        <p className="text-xl font-mono text-accent-red">{analysis.reboundPoint || "بانتظار التأكيد"}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Dynamic Risk Management Advice */}
-                  <div className="mt-4 p-4 bg-accent-blue/5 border border-accent-blue/20 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertTriangle className="w-3 h-3 text-accent-blue" />
-                      <span className="text-[10px] font-bold text-accent-blue uppercase">خطة إدارة المخاطر الذكية</span>
-                    </div>
-                    <div className="space-y-2">
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-text-muted">وقف الخسارة المقترح:</span>
-                          <span className="font-mono text-accent-red font-bold">
-                            {analysis.sentiment === 'positive' && analysis.entryPrice 
-                              ? (analysis.entryPrice * 0.95).toFixed(2) 
-                              : "---"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-text-muted">توزيع المحفظة (الحد الأقصى):</span>
-                          <span className="font-mono text-accent-blue font-bold">
-                            {market === 'TASI' ? '5% - 8%' : '3% - 5%'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-text-muted">مستوى المخاطرة:</span>
-                          <span className={cn(
-                            "font-bold",
-                            market === 'TASI' ? "text-accent-blue" : "text-gray-400"
-                          )}>
-                            {market === 'TASI' ? 'متوسطة (سوق ناشئ)' : 'عالية (تقلبات دولية)'}
-                          </span>
-                        </div>
-                    </div>
-                    <p className="mt-3 text-[9px] text-text-muted leading-tight">
-                      * تعتمد الإدارة على نسبة 5% وقف خسارة تلقائي بناءً على سعر الدخول المقترح.
-                    </p>
-                  </div>
-                </div>
-              ) : analyzing ? (
-                <div className="flex flex-col items-center justify-center py-12 gap-4">
-                  <div className="w-12 h-12 border-2 border-accent-blue/20 border-t-accent-blue rounded-full animate-spin" />
-                  <p className="text-xs text-text-muted font-mono animate-pulse">جاري معالجة البيانات الفنية...</p>
-                </div>
-              ) : (
-                <p className="text-sm text-text-muted font-mono text-center py-8">لا تتوفر تحليلات حاليا</p>
-              )}
-            </div>
-          </div>
-
-          {/* Chart Section */}
-          <div className="lg:col-span-2 flex flex-col gap-8">
-            <div className="bg-surface border border-border-custom p-8 flex-1 rounded-xl">
-              <div className="flex items-center justify-between mb-8">
-                <div className="flex items-center gap-2">
-                  <ChartIcon className="w-5 h-5 text-text-muted" />
-                  <h3 className="text-sm font-mono text-text-muted uppercase tracking-widest">أداء السهم الفني</h3>
-                </div>
-                <div className="flex gap-2">
-                  <span className="text-[10px] bg-accent-blue/10 text-accent-blue px-2 py-1 font-mono uppercase rounded">6 أشهر</span>
-                </div>
-              </div>
-              
-              <div className="h-[500px] w-full bg-bg/50 border border-border-custom rounded-lg overflow-hidden grayscale-[0.2] hover:grayscale-0 transition-all">
-                <TradingViewWidget tvSymbol={tvSymbol} />
-              </div>
-            </div>
-
-            {/* News Section */}
-            <div className="bg-surface border border-border-custom p-8 rounded-xl">
-              <div className="flex items-center gap-2 mb-6">
-                <Newspaper className="w-5 h-5 text-text-muted" />
-                <h3 className="text-sm font-mono text-text-muted uppercase tracking-widest">أخبار الشركة</h3>
-              </div>
-              <div className="space-y-6">
-                {news.length > 0 ? news.map((item) => (
-                  <a 
-                    key={item.uuid} 
-                    href={item.link} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="block group border-b border-border-custom pb-4 last:border-0 hover:border-accent-blue/50 transition-colors"
-                  >
-                    <div className="flex justify-between items-start gap-4">
-                      <h4 className="text-sm font-medium text-text-main group-hover:text-white transition-colors flex-1 leading-relaxed">
-                        {item.title}
-                      </h4>
-                      <ArrowLeft className="w-4 h-4 text-text-muted group-hover:text-accent-blue transition-all opacity-0 group-hover:opacity-100" />
-                    </div>
-                    <div className="flex items-center gap-3 mt-2">
-                      <span className="text-[10px] text-text-muted font-mono uppercase">{item.publisher}</span>
-                      <span className="text-[10px] text-border-custom font-mono">•</span>
-                      <span className="text-[10px] text-text-muted font-mono">{safeFormat(item.providerPublishTime * 1000, 'yyyy/MM/dd')}</span>
-                    </div>
-                  </a>
-                )) : (
-                  <p className="text-text-muted text-xs italic">لا توجد أخبار متاحة حالياً.</p>
-                )}
-              </div>
+            <div className="flex flex-col">
+              <span className="font-black text-lg leading-tight text-madrasati-green">لجنة التميز</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">مجمع سعد بن عبادة التعليمي</span>
             </div>
           </div>
         </div>
 
-        {/* Footer Info */}
-        <footer className="mt-12 pt-8 border-t border-border-custom flex flex-col md:flex-row justify-between items-center gap-4 text-text-muted">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-center md:text-right">
-            تنبيه: هذا التحليل استرشادي فقط ولا يعتبر نصيحة استثمارية. تداول بمسؤولية.
-          </p>
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-accent-green animate-pulse" />
-              <span className="text-[10px] font-mono">نظام براق نشط</span>
-            </div>
-            <span className="text-[10px] font-mono">© 2026 Buraq Analytics</span>
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex flex-col items-end">
+            <span className="text-sm font-bold">اسم المستخدم</span>
+            <span className="text-[10px] text-slate-400">قائد المدرسة</span>
           </div>
-        </footer>
+          <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500">
+            <Users size={20} />
+          </div>
+        </div>
+      </header>
 
-        {/* Auth Modal */}
-        {isAuthModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" dir="rtl">
-            <div className="bg-surface border border-border-custom w-full max-w-md rounded-2xl p-8 relative overflow-hidden shadow-2xl">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-accent-blue/5 blur-3xl -mr-16 -mt-16 rounded-full" />
-              
-              <button 
-                onClick={() => setIsAuthModalOpen(false)}
-                className="absolute top-4 left-4 text-text-muted hover:text-white transition-colors"
+      {/* Sidebar - Madrasati Style */}
+      <nav className="fixed top-16 right-0 h-[calc(100vh-64px)] w-64 bg-white border-l border-slate-200 z-50 hidden lg:block">
+        <div className="py-4">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-full madrasati-sidebar-item ${
+                activeTab === tab.id ? 'madrasati-sidebar-item-active' : ''
+              }`}
+            >
+              <tab.icon size={20} className={activeTab === tab.id ? 'text-madrasati-green' : 'text-slate-400'} />
+              <span className="text-sm">{tab.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {/* Main Content */}
+      <main className="lg:mr-64 pt-24 p-6 lg:p-10 min-h-screen">
+        <div className="max-w-6xl mx-auto">
+          <AnimatePresence mode="wait">
+            {activeTab === 'overview' && (
+              <motion.div
+                key="overview"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-8"
               >
-                <X className="w-5 h-5" />
-              </button>
+                {loading.indicators || loading.history ? (
+                  <div className="madrasati-card p-12 flex flex-col items-center justify-center text-slate-400">
+                    <TrendingUp size={48} className="mb-4 opacity-20 animate-pulse" />
+                    <p className="font-bold">جاري تحميل لوحة التحكم...</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Welcome Banner */}
+                    <div className="bg-gradient-to-l from-madrasati-green to-[#26c4b7] rounded-xl p-8 text-white shadow-lg relative overflow-hidden">
+                      <div className="relative z-10">
+                        <h1 className="text-3xl font-black mb-1">مرحباً بك في منصة لجنة التميز</h1>
+                        <p className="text-xl font-bold text-white/90 mb-4">مجمع سعد بن عبادة التعليمي</p>
+                        <p className="text-white/80 max-w-2xl">نعمل معاً لتحقيق أعلى معايير الجودة والتميز في بيئتنا المدرسية وفق رؤية المملكة 2030.</p>
+                      </div>
+                      <Award className="absolute -bottom-4 -left-4 text-white/10 w-48 h-48 rotate-12" />
+                    </div>
 
-              <div className="text-center mb-8">
-                <div className="w-12 h-12 bg-accent-blue/10 rounded-xl flex items-center justify-center mx-auto mb-4 border border-accent-blue/20">
-                  <Lock className="w-6 h-6 text-accent-blue" />
+                    {/* Concept and Goals - Madrasati Style */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      <div className="madrasati-card p-6">
+                        <div className="flex items-center gap-3 text-madrasati-green mb-4">
+                          <Target size={28} />
+                          <h3 className="text-xl font-bold">مفهوم اللجنة</h3>
+                        </div>
+                        <p className="text-slate-600 leading-relaxed text-sm">
+                          لجنة مدرسية تُعنى بتطبيق معايير التميز المؤسسي والتعليمي، وتسعى لتحسين الأداء العام ونشر ثقافة الجودة والإبداع وتحقيق نتائج تعليمية متميزة.
+                        </p>
+                      </div>
+
+                      <div className="madrasati-card p-6">
+                        <div className="flex items-center gap-3 text-madrasati-orange mb-4">
+                          <Award size={28} />
+                          <h3 className="text-xl font-bold">أهدافنا</h3>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3">
+                          {[
+                            'تحسين الأداء العام للمدرسة',
+                            'نشر ثقافة الجودة والإبداع',
+                            'تحقيق نتائج تعليمية متميزة',
+                            'الاستعداد للمنافسة في الجوائز'
+                          ].map((goal, i) => (
+                            <div key={i} className="flex items-center gap-3 text-xs text-slate-600">
+                              <CheckCircle2 size={14} className="text-madrasati-green" />
+                              <span>{goal}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Achievement Highlight */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                      <div className="madrasati-card p-6 bg-madrasati-dark text-white border-none flex flex-col items-center">
+                        <div className="flex items-center justify-between w-full mb-2">
+                          <TrendingUp className={status.color} size={24} />
+                          <span className={`${status.bg}/20 ${status.color} text-[10px] px-2 py-1 rounded font-bold uppercase tracking-wider`}>مؤشر الأداء العام</span>
+                        </div>
+                        
+                        <h3 className="text-sm font-bold mb-1 opacity-80">مستوى الأداء العام</h3>
+                        
+                        <GaugeChart value={averageProgress} />
+                        
+                        <div className="mt-4 flex flex-col items-center">
+                          <div className="flex items-center gap-2">
+                            <span className={`${status.color} text-lg font-black`}>{status.label}</span>
+                            {history.length > 0 && (
+                              <div className={`flex items-center gap-1 text-xs font-bold ${getAverageChange() >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {getAverageChange() >= 0 ? <TrendingUp size={12} /> : <TrendingUp size={12} className="rotate-180" />}
+                                <span>{getAverageChange() > 0 ? '+' : ''}{getAverageChange()}%</span>
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-white/40 text-[10px] font-bold mt-1">تحديث تلقائي بناءً على المؤشرات</span>
+                        </div>
+                      </div>
+
+                      <div className="lg:col-span-2 madrasati-card p-6 flex flex-col justify-center bg-white">
+                        <h3 className="text-lg font-bold text-madrasati-dark mb-3">رؤية التميز</h3>
+                        <p className="text-slate-500 leading-relaxed text-sm">
+                          نسعى لأن نكون نموذجاً رائداً في تطبيق معايير التميز التعليمي، من خلال تمكين المعلمين وتحفيز الطلاب إشراك المجتمع المدرسي في رحلة التطوير المستمر نحو مستقبل تعليمي مشرق.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Management and Follow-up - Moved to bottom */}
+                    <div className="madrasati-card p-8 border-2 border-madrasati-green/30 bg-emerald-50/20 max-w-2xl mx-auto">
+                      <div className="flex items-center justify-center gap-4 text-madrasati-green mb-6">
+                        <ShieldCheck size={32} />
+                        <h3 className="text-2xl font-black">إدارة ومتابعة</h3>
+                      </div>
+                      <div className="flex flex-col md:flex-row items-center justify-center gap-8">
+                        <div className="w-24 h-24 bg-madrasati-green text-white rounded-full flex items-center justify-center shadow-xl shrink-0">
+                          <Users size={48} />
+                        </div>
+                        <div className="text-center md:text-right">
+                          <h4 className="text-2xl font-black text-madrasati-dark">أ. وليد العبدلي</h4>
+                          <p className="text-sm text-slate-500 font-bold mt-2">المشرف العام على أعمال اللجنة</p>
+                          <div className="mt-4 flex items-center justify-center md:justify-end gap-2 text-madrasati-green">
+                            <CheckCircle2 size={18} />
+                            <span className="text-xs font-bold">مجمع سعد بن عبادة التعليمي</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'members' && (
+              <motion.div
+                key="members"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+              >
+                {members.length === 0 ? (
+                  <div className="md:col-span-2 lg:col-span-3 madrasati-card p-12 flex flex-col items-center justify-center text-slate-400">
+                    <Users size={48} className="mb-4 opacity-20" />
+                    <p className="font-bold">لا يوجد أعضاء مضافون حالياً</p>
+                  </div>
+                ) : (
+                  members.map((member, i) => (
+                    <div key={member.docId || i} className="madrasati-card p-6 flex flex-col items-center text-center">
+                      <div className={`w-16 h-16 rounded-full ${member.color || 'bg-slate-500'} text-white flex items-center justify-center mb-4 shadow-md`}>
+                        <Users size={32} />
+                      </div>
+                      <h3 className="text-lg font-bold text-madrasati-dark">{member.role}</h3>
+                      <p className="text-madrasati-green text-xs font-bold mb-3">{member.title}</p>
+                      <p className="text-slate-500 text-xs leading-relaxed">{member.description}</p>
+                    </div>
+                  ))
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'stats' && (
+              <motion.div
+                key="stats"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                className="space-y-8"
+              >
+                {!schoolStats ? (
+                  <div className="madrasati-card p-12 flex flex-col items-center justify-center text-slate-400">
+                    <BarChart3 size={48} className="mb-4 opacity-20" />
+                    <p className="font-bold">جاري تحميل الإحصائيات...</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Statistics Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* General Stats - Full Width School Profile */}
+                      <div className="md:col-span-2 madrasati-card p-6">
+                        <h3 className="text-lg font-bold mb-6 flex items-center gap-2 text-madrasati-green border-b border-slate-100 pb-3">
+                          <BarChart3 size={20} />
+                          بيانات المدرسة العامة
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                          {schoolStats.general.map((stat: any, i: number) => (
+                            <div key={i} className="bg-slate-50 p-3 rounded-lg flex items-center gap-3 border border-slate-100 hover:bg-white hover:shadow-sm transition-all">
+                              <div className="w-8 h-8 rounded-full bg-madrasati-green/10 flex items-center justify-center text-madrasati-green shrink-0">
+                                <stat.icon size={16} />
+                              </div>
+                              <div className="overflow-hidden">
+                                <p className="text-[10px] text-slate-500 font-bold mb-0.5">{stat.label}</p>
+                                <p className="text-sm font-black text-madrasati-dark truncate">{stat.value}</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Class Stats */}
+                      <div className="madrasati-card p-6">
+                        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-madrasati-orange">
+                          <School size={20} />
+                          إحصائيات الفصول
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          {schoolStats.classes.map((stat: any, i: number) => (
+                            <div key={i} className="bg-slate-50 p-4 rounded-lg text-center">
+                              <stat.icon size={20} className="mx-auto mb-2 text-slate-400" />
+                              <p className="text-2xl font-black text-madrasati-orange">{stat.value}</p>
+                              <p className="text-[10px] text-slate-500">{stat.label}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Building Stats */}
+                      <div className="madrasati-card p-6">
+                        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-indigo-600">
+                          <School size={20} />
+                          إحصائيات المبنى المدرسي
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          {schoolStats.building.map((stat: any, i: number) => (
+                            <div key={i} className="bg-slate-50 p-4 rounded-lg text-center">
+                              <stat.icon size={20} className="mx-auto mb-2 text-slate-400" />
+                              <p className="text-2xl font-black text-indigo-600">{stat.value}</p>
+                              <p className="text-[10px] text-slate-500">{stat.label}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Staff Stats */}
+                      <div className="madrasati-card p-6">
+                        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-rose-600">
+                          <Users size={20} />
+                          إحصائية منسوبي المدرسة
+                        </h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          {schoolStats.staff.map((stat: any, i: number) => (
+                            <div key={i} className="bg-slate-50 p-4 rounded-lg text-center">
+                              <stat.icon size={20} className="mx-auto mb-2 text-slate-400" />
+                              <p className="text-2xl font-black text-rose-600">{stat.value}</p>
+                              <p className="text-[10px] text-slate-500">{stat.label}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Organizational Structure Section */}
+                    <div className="madrasati-card p-8 bg-white">
+                      <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
+                        <div className="p-2 bg-madrasati-green/10 rounded-lg text-madrasati-green">
+                          <LayoutDashboard size={24} />
+                        </div>
+                        <h3 className="text-xl font-bold">الهيكل التنظيمي</h3>
+                      </div>
+                      <div className="relative aspect-[16/9] bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 group hover:border-madrasati-green hover:bg-emerald-50/30 transition-all cursor-pointer overflow-hidden">
+                        <img 
+                          src={settings.orgStructureUrl} 
+                          alt="الهيكل التنظيمي" 
+                          className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                          referrerPolicy="no-referrer"
+                        />
+                        {!settings.orgStructureUrl.includes('picsum') && (
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'indicators' && (
+              <motion.div
+                key="indicators"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-8"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {indicators.map((ind, i) => (
+                    <div key={i} className="madrasati-card p-8 group hover:border-madrasati-green transition-all">
+                      <div className="flex items-start justify-between mb-6">
+                        <div className={`p-4 rounded-2xl ${ind.bgColor} ${ind.color} group-hover:scale-110 transition-transform`}>
+                          <ind.icon size={32} />
+                        </div>
+                        <div className="text-left">
+                          <div className="flex flex-col items-end">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">مؤشر أداء</span>
+                            <div className="flex items-center gap-2">
+                              {history.length > 0 && (
+                                <div className={`flex items-center gap-1 text-xs font-bold ${getIndicatorChange(i) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                  {getIndicatorChange(i) >= 0 ? <TrendingUp size={14} /> : <TrendingUp size={14} className="rotate-180" />}
+                                  <span>{getIndicatorChange(i) > 0 ? '+' : ''}{getIndicatorChange(i)}%</span>
+                                </div>
+                              )}
+                              <span className={`text-2xl font-black ${ind.color}`}>{ind.progress}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <h3 className="text-2xl font-black mb-2">{ind.title}</h3>
+                      <p className="text-slate-500 text-sm mb-6 leading-relaxed">{ind.description}</p>
+                      
+                      {/* Progress Bar */}
+                      <div className="mb-6">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase">نسبة الإنجاز</span>
+                          <span className="text-[10px] font-bold text-slate-600">{ind.progress}/100</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${ind.progress}%` }}
+                            className={`h-full ${ind.color.replace('text-', 'bg-')}`}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 group-hover:bg-madrasati-green/5 group-hover:border-madrasati-green/20 transition-colors">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-1.5 h-1.5 rounded-full bg-madrasati-orange"></div>
+                          <span className="text-[10px] font-bold text-madrasati-orange uppercase">المبادرة المرتبطة</span>
+                        </div>
+                        <p className="text-lg font-bold text-madrasati-dark">{ind.initiative}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <h2 className="text-2xl font-bold text-white mb-2">
-                  {authMode === 'login' ? 'مرحباً بعودتك' : 'إنشاء حساب جديد'}
-                </h2>
-                <p className="text-text-muted text-xs">
-                  {authMode === 'login' ? 'ادخل بياناتك للوصول إلى منصة براق' : 'انضم إلينا للحصول على تحليلات متقدمة'}
-                </p>
-              </div>
 
-              <form onSubmit={handleAuth} className="space-y-4">
-                {authMode === 'signup' && (
-                  <div>
-                    <label className="block text-[10px] text-text-muted uppercase mb-1 mr-1">الاسم الكامل</label>
-                    <div className="relative">
-                      <UserIcon className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                      <input 
-                        type="text"
-                        required
-                        value={authFullName}
-                        onChange={(e) => setAuthFullName(e.target.value)}
-                        className="w-full bg-bg border border-border-custom text-white pr-10 pl-4 py-3 rounded-xl focus:outline-none focus:border-accent-blue transition-all"
-                        placeholder="أحمد محمد"
-                      />
+                {/* Summary Section */}
+                <div className="bg-madrasati-dark rounded-2xl p-8 text-white shadow-xl relative overflow-hidden">
+                  <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
+                    <div className="max-w-xl">
+                      <h3 className="text-2xl font-bold mb-3">متابعة مؤشرات التميز</h3>
+                      <p className="text-white/60 text-sm leading-relaxed">
+                        يتم رصد هذه المؤشرات بشكل دوري لضمان تحقيق مستهدفات الخطة التشغيلية للمدرسة والارتقاء بمستوى الأداء التعليمي والإداري.
+                      </p>
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="text-center px-6 py-4 bg-white/5 rounded-xl border border-white/10">
+                        <p className="text-3xl font-black text-madrasati-green">4</p>
+                        <p className="text-[10px] text-white/40 font-bold uppercase">مجالات رئيسية</p>
+                      </div>
+                      <div className="text-center px-6 py-4 bg-white/5 rounded-xl border border-white/10">
+                        <p className="text-3xl font-black text-madrasati-orange">4</p>
+                        <p className="text-[10px] text-white/40 font-bold uppercase">مبادرات نوعية</p>
+                      </div>
                     </div>
                   </div>
-                )}
+                  <Target className="absolute -bottom-10 -right-10 text-white/5 w-64 h-64" />
+                </div>
+              </motion.div>
+            )}
 
-                <div>
-                  <label className="block text-[10px] text-text-muted uppercase mb-1 mr-1">اسم المستخدم أو البريد الإلكتروني</label>
-                  <div className="relative">
-                    <Mail className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                    <input 
-                      type="text"
-                      required
-                      value={authEmail}
-                      onChange={(e) => setAuthEmail(e.target.value)}
-                      className="w-full bg-bg border border-border-custom text-white pr-10 pl-4 py-3 rounded-xl focus:outline-none focus:border-accent-blue transition-all"
-                      placeholder="admin أو name@example.com"
-                    />
+            {activeTab === 'goals' && (
+              <motion.div
+                key="goals"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-8"
+              >
+                <SectionHeader 
+                  title="الأهداف التشغيلية" 
+                  icon={Milestone} 
+                  subtitle="متابعة الأهداف الاستراتيجية والتشغيلية للمدرسة"
+                />
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {operationalGoals.map((goal) => (
+                    <div key={goal.id} className="madrasati-card p-8 group hover:border-madrasati-green transition-all relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-madrasati-green/5 rounded-bl-full -mr-10 -mt-10 transition-all group-hover:w-32 group-hover:h-32"></div>
+                      
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="p-3 bg-madrasati-green/10 text-madrasati-green rounded-xl">
+                            <Flag size={24} />
+                          </div>
+                          <h3 className="text-xl font-black text-madrasati-dark">{goal.mainGoal}</h3>
+                        </div>
+
+                        <div className="space-y-6 mb-8">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">الأهداف التابعة والنتائج</p>
+                          {goal.subGoals.map((sg: any, idx: number) => (
+                            <div key={idx} className="space-y-3">
+                              <div className="flex items-start gap-3">
+                                <div className="mt-1.5 w-1.5 h-1.5 rounded-full bg-madrasati-orange shrink-0"></div>
+                                <p className="text-sm text-slate-600 leading-relaxed font-bold">{typeof sg === 'string' ? sg : sg.text}</p>
+                              </div>
+                              
+                              {typeof sg === 'object' && (sg.baseline !== undefined || sg.target !== undefined) && (
+                                <div className="grid grid-cols-3 gap-2 mr-4">
+                                  <div className="bg-slate-50/50 px-3 py-2 rounded-lg border border-slate-100">
+                                    <p className="text-[8px] font-bold text-slate-400 uppercase mb-0.5">خط الأساس</p>
+                                    <p className="text-xs font-black text-slate-600">{sg.baseline}%</p>
+                                  </div>
+                                  <div className="bg-emerald-50/50 px-3 py-2 rounded-lg border border-emerald-100">
+                                    <p className="text-[8px] font-bold text-emerald-600 uppercase mb-0.5">المستهدف</p>
+                                    <p className="text-xs font-black text-emerald-600">{sg.target}%</p>
+                                  </div>
+                                  <div className="bg-amber-50/50 px-3 py-2 rounded-lg border border-amber-100">
+                                    <p className="text-[8px] font-bold text-amber-600 uppercase mb-0.5">التغير</p>
+                                    <p className="text-xs font-black text-amber-600">+{sg.change}%</p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'attachments' && (
+              <motion.div
+                key="attachments"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="space-y-8"
+              >
+                <div className="flex items-center justify-between">
+                  <SectionHeader 
+                    title="مركز المرفقات" 
+                    icon={FolderOpen} 
+                    subtitle="تحميل ومعاينة الوثائق والملفات الرسمية للجنة"
+                  />
+                  {user && (
+                    <label className="flex items-center gap-2 bg-madrasati-green text-white px-6 py-3 rounded-xl font-bold cursor-pointer hover:bg-emerald-700 transition-all shadow-md">
+                      <UploadCloud size={20} />
+                      رفع ملف جديد
+                      <input 
+                        type="file" 
+                        className="hidden" 
+                        onChange={handleFileUpload}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {attachments.map((file) => (
+                    <div key={file.docId} className="madrasati-card p-6 group hover:border-madrasati-green transition-all relative">
+                      {user && (
+                        <button 
+                          onClick={() => handleDeleteAttachment(file.docId)}
+                          className="absolute top-4 left-4 text-slate-300 hover:text-rose-500 transition-colors"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="p-3 bg-slate-100 text-slate-400 rounded-xl group-hover:bg-madrasati-green/10 group-hover:text-madrasati-green transition-colors">
+                          <FileText size={28} />
+                        </div>
+                        <span className="text-[10px] font-bold bg-slate-100 text-slate-500 px-2 py-1 rounded uppercase">
+                          {file.type}
+                        </span>
+                      </div>
+                      
+                      <h3 className="font-bold text-madrasati-dark mb-1 truncate" title={file.name}>
+                        {file.name}
+                      </h3>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase mb-4">{file.category}</p>
+                      
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold mb-6">
+                        <span>{file.size}</span>
+                        <span>{file.date}</span>
+                      </div>
+
+                      <a 
+                        href={file.url || '#'} 
+                        target={file.url ? "_blank" : "_self"}
+                        rel="noopener noreferrer"
+                        className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-lg font-bold text-sm transition-all ${
+                          file.url 
+                            ? 'bg-slate-50 text-slate-600 hover:bg-madrasati-green hover:text-white' 
+                            : 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                        }`}
+                        onClick={(e) => !file.url && e.preventDefault()}
+                      >
+                        <Download size={16} />
+                        {file.url ? 'تحميل الملف' : 'رابط غير متوفر'}
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'reports' && (
+              <motion.div
+                key="reports"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+              >
+                {reports.length === 0 ? (
+                  <div className="md:col-span-2 lg:col-span-3 madrasati-card p-12 flex flex-col items-center justify-center text-slate-400">
+                    <ShieldCheck size={48} className="mb-4 opacity-20" />
+                    <p className="font-bold">لا توجد تقارير محمية حالياً</p>
+                  </div>
+                ) : (
+                  reports.map((report) => (
+                    <div key={report.docId} className="madrasati-card p-6 flex flex-col">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
+                          <ShieldCheck size={24} />
+                        </div>
+                        <h3 className="text-lg font-bold text-madrasati-dark">{report.name}</h3>
+                      </div>
+                      
+                      {!unlockedReports[report.docId] ? (
+                        <div className="space-y-4">
+                          <p className="text-xs text-slate-500">هذا التقرير محمي بكلمة مرور. يرجى إدخالها للمتابعة.</p>
+                          <div className="flex gap-2">
+                            <input 
+                              type="password" 
+                              placeholder="كلمة المرور"
+                              value={reportPassword[report.docId] || ''}
+                              onChange={(e) => setReportPassword(prev => ({ ...prev, [report.docId]: e.target.value }))}
+                              className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-rose-500/20 outline-none"
+                            />
+                            <button 
+                              onClick={() => handleUnlockReport(report.docId, reportPassword[report.docId], report.password)}
+                              className="px-4 py-2 bg-rose-500 text-white rounded-lg text-sm font-bold hover:bg-rose-600 transition-all"
+                            >
+                              فتح
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-between">
+                            <div className="flex items-center gap-2 text-emerald-600">
+                              <CheckCircle2 size={16} />
+                              <span className="text-xs font-bold">تم فك التشفير</span>
+                            </div>
+                            <a 
+                              href={report.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-madrasati-green hover:underline text-xs font-bold flex items-center gap-1"
+                            >
+                              <Download size={14} />
+                              تحميل التقرير
+                            </a>
+                          </div>
+                          <button 
+                            onClick={() => setUnlockedReports(prev => ({ ...prev, [report.docId]: false }))}
+                            className="w-full py-2 text-slate-400 hover:text-slate-600 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                          >
+                            إعادة القفل
+                          </button>
+                        </div>
+                      )}
+                      
+                      <div className="mt-auto pt-4 border-t border-slate-50 flex items-center justify-between text-[10px] text-slate-400 font-bold">
+                        <span>تاريخ الرفع: {report.date}</span>
+                        <FileText size={14} />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === 'admin' && (
+              <motion.div
+                key="admin"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                className="max-w-4xl mx-auto"
+              >
+                <SectionHeader 
+                  title="لوحة التحكم" 
+                  icon={Settings} 
+                  subtitle="إدارة بيانات المدرسة والمؤشرات التشغيلية"
+                />
+
+                {!user ? (
+                  <Login onLogin={() => setActiveTab('admin')} setUser={setUser} />
+                ) : (
+                  <div className="space-y-8">
+                    <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-slate-100 shadow-sm mb-8">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
+                          <UserCheck size={20} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-700">Admin</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase">مسؤول النظام</p>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          supabase.auth.signOut();
+                          localStorage.removeItem('excellence_admin_session');
+                          setUser(null);
+                          setActiveTab('overview');
+                        }}
+                        className="px-4 py-2 text-rose-500 hover:bg-rose-50 rounded-lg text-sm font-bold transition-all flex items-center gap-2"
+                      >
+                        <LogOut size={16} />
+                        تسجيل الخروج
+                      </button>
+                    </div>
+
+                    <div className="madrasati-card overflow-hidden mb-8">
+                      <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                        <h3 className="font-bold text-slate-700">إدارة التقارير المحمية</h3>
+                      </div>
+                      <div className="p-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase">اسم التقرير</label>
+                            <input 
+                              id="new-report-name"
+                              type="text" 
+                              placeholder="مثال: تقرير الفصل الأول"
+                              className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none font-bold"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase">كلمة المرور</label>
+                            <input 
+                              id="new-report-password"
+                              type="text" 
+                              placeholder="تعيين كلمة مرور"
+                              className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none font-bold"
+                            />
+                          </div>
+                          <div className="md:col-span-2 space-y-2">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase">ملف التقرير</label>
+                            <div className="relative group">
+                              <input 
+                                id="new-report-file"
+                                type="file" 
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  const label = document.getElementById('file-label');
+                                  if (file && label) label.innerText = file.name;
+                                }}
+                              />
+                              <div className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-slate-200 rounded-xl hover:border-madrasati-green hover:bg-emerald-50 transition-all">
+                                <UploadCloud className="text-slate-400" size={20} />
+                                <span id="file-label" className="text-sm font-bold text-slate-500">اختر ملف التقرير</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="md:col-span-2">
+                            <button 
+                              onClick={() => {
+                                const nameEl = document.getElementById('new-report-name') as HTMLInputElement;
+                                const passEl = document.getElementById('new-report-password') as HTMLInputElement;
+                                const fileEl = document.getElementById('new-report-file') as HTMLInputElement;
+                                const file = fileEl.files?.[0];
+                                
+                                if (nameEl.value && passEl.value && file) {
+                                  handleAddReport(nameEl.value, passEl.value, file);
+                                  nameEl.value = '';
+                                  passEl.value = '';
+                                  fileEl.value = '';
+                                  const label = document.getElementById('file-label');
+                                  if (label) label.innerText = 'اختر ملف التقرير';
+                                } else {
+                                  alert('يرجى إدخال الاسم وكلمة المرور واختيار ملف');
+                                }
+                              }}
+                              className="w-full bg-madrasati-green text-white px-4 py-3 rounded-lg font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+                            >
+                              <Plus size={18} />
+                              إضافة تقرير محمي
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">التقارير الحالية</h4>
+                          {reports.length === 0 ? (
+                            <p className="text-center py-8 text-slate-400 text-sm">لا توجد تقارير مضافة</p>
+                          ) : (
+                            reports.map((report) => (
+                              <div key={report.docId} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-xl">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
+                                    <ShieldCheck size={16} />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-bold text-madrasati-dark">{report.name}</p>
+                                    <p className="text-[10px] text-slate-400">كلمة المرور: {report.password} • {report.date}</p>
+                                  </div>
+                                </div>
+                                <button 
+                                  onClick={() => handleDeleteReport(report.docId)}
+                                  className="text-slate-300 hover:text-rose-500 transition-colors"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="madrasati-card overflow-hidden mb-8">
+                      <div className="p-6 bg-slate-50 border-b border-slate-100">
+                        <h3 className="font-bold text-slate-700">إعدادات الهيكل التنظيمي</h3>
+                      </div>
+                      <div className="p-8">
+                        <div className="flex flex-col md:flex-row gap-6 items-start">
+                          <div className="w-full md:w-1/3 aspect-video bg-slate-100 rounded-xl overflow-hidden border border-slate-200 relative group">
+                            <img 
+                              src={settings.orgStructureUrl} 
+                              alt="Preview" 
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <span className="text-white text-[10px] font-bold">معاينة الهيكل</span>
+                            </div>
+                          </div>
+                          <div className="flex-1 space-y-4 w-full">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase">تحديث صورة الهيكل التنظيمي</label>
+                              <div className="flex flex-col gap-3">
+                                <div className="relative group">
+                                  <input 
+                                    type="file" 
+                                    accept="image/*"
+                                    onChange={async (e) => {
+                                      const file = e.target.files?.[0];
+                                      if (file) {
+                                        try {
+                                          setToast({ message: 'جاري رفع صورة الهيكل...', type: 'success' });
+                                          const fileExt = file.name.split('.').pop();
+                                          const fileName = `org-structure-${Date.now()}.${fileExt}`;
+                                          const filePath = `settings/${fileName}`;
+
+                                          const { error: uploadError } = await supabase.storage
+                                            .from('uploads')
+                                            .upload(filePath, file);
+                                          if (uploadError) throw uploadError;
+
+                                          const { data: { publicUrl } } = supabase.storage
+                                            .from('uploads')
+                                            .getPublicUrl(filePath);
+
+                                          const { error: dbError } = await supabase.from('excellence_settings').upsert({ 
+                                            id: 'general', 
+                                            orgStructureUrl: publicUrl 
+                                          });
+                                          if (dbError) throw dbError;
+
+                                          setSettings(prev => ({ ...prev, orgStructureUrl: publicUrl }));
+                                          setToast({ message: 'تم تحديث الهيكل بنجاح', type: 'success' });
+                                        } catch (error) {
+                                          handleSupabaseError(error, OperationType.UPDATE, 'excellence_settings');
+                                        }
+                                      }
+                                    }}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                  />
+                                  <div className="flex items-center justify-center gap-2 px-6 py-4 border-2 border-dashed border-slate-200 rounded-xl hover:border-madrasati-green hover:bg-emerald-50 transition-all">
+                                    <UploadCloud className="text-slate-400 group-hover:text-madrasati-green" size={24} />
+                                    <span className="text-sm font-bold text-slate-500 group-hover:text-madrasati-green">اختر صورة جديدة للهيكل</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <p className="text-[10px] text-slate-400">
+                                * ملاحظة: سيتم حفظ الصورة في مساحة التخزين الخاصة بك.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="madrasati-card overflow-hidden mb-8">
+                      <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                        <h3 className="font-bold text-slate-700">إدارة المؤشرات الرئيسية</h3>
+                        <button 
+                          onClick={handleAddIndicator}
+                          className="flex items-center gap-2 bg-madrasati-green text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-700 transition-all shadow-md active:scale-95"
+                        >
+                          <Plus size={18} />
+                          إضافة مؤشر جديد
+                        </button>
+                      </div>
+                      <div className="p-8 space-y-6">
+                        {indicators.map((ind, i) => (
+                          <div key={ind.id} className="p-6 border border-slate-100 rounded-2xl bg-slate-50/50 space-y-4 relative group">
+                            <button 
+                              onClick={() => handleDeleteIndicator(ind.id)}
+                              className="absolute top-4 left-4 text-slate-300 hover:text-rose-500 transition-colors"
+                              title="حذف المؤشر"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase">عنوان المؤشر</label>
+                                <input 
+                                  type="text" 
+                                  value={ind.title}
+                                  onChange={(e) => handleUpdateIndicator(ind.id, 'title', e.target.value)}
+                                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none font-bold"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase">المبادرة</label>
+                                <input 
+                                  type="text" 
+                                  value={ind.initiative}
+                                  onChange={(e) => handleUpdateIndicator(ind.id, 'initiative', e.target.value)}
+                                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none font-bold text-madrasati-green"
+                                />
+                              </div>
+                              <div className="md:col-span-2 space-y-2">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase">الوصف</label>
+                                <textarea 
+                                  value={ind.description}
+                                  onChange={(e) => handleUpdateIndicator(ind.id, 'description', e.target.value)}
+                                  className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-sm min-h-[60px]"
+                                />
+                              </div>
+                            </div>
+                            <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                              <div className="flex items-center gap-4 flex-1 max-w-md">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase whitespace-nowrap">نسبة الإنجاز (%)</label>
+                                <div className="flex-1 relative h-2 bg-slate-200 rounded-full overflow-hidden">
+                                  <input 
+                                    type="range" 
+                                    min="0" 
+                                    max="100" 
+                                    value={ind.progress}
+                                    onChange={(e) => handleUpdateIndicator(ind.id, 'progress', parseInt(e.target.value))}
+                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                  />
+                                  <motion.div 
+                                    initial={false}
+                                    animate={{ width: `${ind.progress}%` }}
+                                    className={`h-full ${ind.color.replace('text-', 'bg-')}`}
+                                  />
+                                </div>
+                                <input 
+                                  type="number" 
+                                  value={ind.progress}
+                                  onChange={(e) => handleUpdateIndicator(ind.id, 'progress', parseInt(e.target.value) || 0)}
+                                  className="w-16 px-2 py-1 bg-white border border-slate-200 rounded text-center font-bold text-sm"
+                                />
+                              </div>
+                              <button 
+                                onClick={() => handleSaveIndicator(ind.id)}
+                                className="bg-madrasati-green text-white px-6 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-md active:scale-95 text-sm"
+                              >
+                                حفظ المؤشر
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="madrasati-card overflow-hidden mb-8">
+                      <div className="p-6 bg-slate-50 border-b border-slate-100">
+                        <h3 className="font-bold text-slate-700">تعديل نسب المؤشرات (سريع)</h3>
+                      </div>
+                  <div className="p-8 space-y-8">
+                    <div className="p-6 bg-madrasati-green/5 border border-madrasati-green/20 rounded-xl mb-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-madrasati-green rounded-lg text-white">
+                            <Target size={20} />
+                          </div>
+                          <div>
+                            <p className="font-bold text-madrasati-dark">نسبة المؤشر العام</p>
+                            <p className="text-xs text-slate-500">التحكم في النسبة التي تظهر في المؤشر الرئيسي</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <button 
+                            onClick={saveSnapshot}
+                            className="flex items-center gap-2 px-4 py-2 bg-madrasati-green text-white rounded-lg font-bold text-sm hover:bg-madrasati-green/90 transition-all shadow-sm"
+                          >
+                            <Calendar size={16} />
+                            حفظ نقطة مرجعية (تاريخ)
+                          </button>
+                          <div className="flex items-center gap-2 mr-4">
+                            <input 
+                              type="checkbox" 
+                              id="manual-mode"
+                              checked={manualAverageProgress !== null}
+                              onChange={(e) => setManualAverageProgress(e.target.checked ? averageProgress : null)}
+                              className="w-4 h-4 text-madrasati-green rounded focus:ring-madrasati-green"
+                            />
+                            <label htmlFor="manual-mode" className="text-sm font-bold text-slate-600 cursor-pointer">إدخال يدوي</label>
+                          </div>
+                          <input 
+                            type="number" 
+                            disabled={manualAverageProgress === null}
+                            value={manualAverageProgress !== null ? manualAverageProgress : averageProgress}
+                            onChange={(e) => setManualAverageProgress(parseInt(e.target.value) || 0)}
+                            className={`w-24 px-3 py-2 bg-white border border-slate-200 rounded-lg text-center font-black text-madrasati-green focus:ring-2 focus:ring-madrasati-green outline-none transition-all ${manualAverageProgress === null ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            min="0"
+                            max="100"
+                          />
+                          <span className="font-bold text-slate-400">%</span>
+                        </div>
+                      </div>
+                      {manualAverageProgress !== null && (
+                        <p className="text-[10px] text-amber-600 font-bold bg-amber-50 p-2 rounded border border-amber-100">
+                          * تنبيه: النسبة مدخلة يدوياً ولن تتأثر بتغيير نسب المؤشرات الفرعية بالأسفل.
+                        </p>
+                      )}
+                      {history.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-madrasati-green/10">
+                          <p className="text-xs font-bold text-slate-500 mb-2">آخر النقاط المرجعية المحفوظة:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {history.slice(0, 3).map((h, idx) => (
+                              <div key={idx} className="flex items-center gap-2 px-3 py-1 bg-white border border-slate-100 rounded-full text-[10px] font-bold text-slate-600">
+                                <Clock size={12} className="text-madrasati-green" />
+                                <span>{h.date}</span>
+                                <span className="text-madrasati-green">{h.average}%</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-8">
+                      <div className="flex items-center justify-between mb-6">
+                        <h4 className="font-bold text-slate-600 text-sm">سجل النقاط المرجعية (التاريخ)</h4>
+                        {history.length > 0 && (
+                          <button 
+                            onClick={async () => {
+                              if (!user) return;
+                              for (const h of history) {
+                                await supabase.from('excellence_history').delete().eq('id', (h as any).docId);
+                              }
+                            }}
+                            className="text-[10px] font-bold text-rose-500 hover:text-rose-600 flex items-center gap-1"
+                          >
+                            <Trash2 size={12} />
+                            مسح السجل
+                          </button>
+                        )}
+                      </div>
+                      
+                      {history.length === 0 ? (
+                        <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                          <Clock size={32} className="mx-auto text-slate-300 mb-3" />
+                          <p className="text-sm text-slate-400 font-bold">لا يوجد نقاط مرجعية محفوظة حالياً</p>
+                          <p className="text-[10px] text-slate-400 mt-1">اضغط على "حفظ نقطة مرجعية" لتسجيل الحالة الحالية للمؤشرات</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {history.map((h, idx) => (
+                            <div key={idx} className="p-4 bg-white border border-slate-100 rounded-xl hover:border-madrasati-green/30 transition-all group">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-madrasati-green/10 text-madrasati-green rounded-lg">
+                                    <Calendar size={16} />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-bold text-slate-700">{h.date}</p>
+                                    <p className="text-[10px] text-slate-400">تم الحفظ في هذا التاريخ للمقارنة</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="text-left">
+                                    <p className="text-lg font-black text-madrasati-green">{h.average}%</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">المؤشر العام</p>
+                                  </div>
+                                  <button 
+                                    onClick={() => handleDeleteHistory(h.docId)}
+                                    className="p-2 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
+                                    title="حذف السجل"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-3 border-t border-slate-50">
+                                {h.indicators.map((ind, i) => (
+                                  <div key={i} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
+                                    <span className="text-[10px] font-bold text-slate-500 truncate max-w-[80px]">{ind.title}</span>
+                                    <span className="text-[10px] font-black text-slate-700">{ind.progress}%</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-slate-100 pt-8">
+                      <h4 className="font-bold text-slate-600 mb-6 text-sm">نسب المؤشرات الفرعية</h4>
+                      <div className="space-y-8">
+                        {indicators.map((ind, i) => (
+                      <div key={i} className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg ${ind.bgColor} ${ind.color}`}>
+                              <ind.icon size={20} />
+                            </div>
+                            <div>
+                              <p className="font-bold text-madrasati-dark">{ind.title}</p>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase">{ind.initiative}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <input 
+                              type="number" 
+                              value={ind.progress}
+                              onChange={(e) => handleUpdateProgress(i, parseInt(e.target.value) || 0)}
+                              className="w-20 px-3 py-2 bg-white border border-slate-200 rounded-lg text-center font-black text-madrasati-green focus:ring-2 focus:ring-madrasati-green outline-none transition-all"
+                              min="0"
+                              max="100"
+                            />
+                            <span className="font-bold text-slate-400">%</span>
+                          </div>
+                        </div>
+                        <div className="relative h-2 bg-slate-100 rounded-full overflow-hidden">
+                          <input 
+                            type="range" 
+                            min="0" 
+                            max="100" 
+                            value={ind.progress}
+                            onChange={(e) => handleUpdateProgress(i, parseInt(e.target.value))}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                          />
+                          <motion.div 
+                            initial={false}
+                            animate={{ width: `${ind.progress}%` }}
+                            className={`h-full ${ind.color.replace('text-', 'bg-')}`}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                      </div>
+                      <div className="mt-8 flex justify-end">
+                        <button 
+                          onClick={handleSaveIndicators}
+                          className="bg-madrasati-green text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
+                        >
+                          حفظ نسب المؤشرات
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[10px] text-text-muted uppercase mb-1 mr-1">كلمة المرور</label>
-                  <div className="relative">
-                    <Lock className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-                    <input 
-                      type="password"
-                      required
-                      value={authPassword}
-                      onChange={(e) => setAuthPassword(e.target.value)}
-                      className="w-full bg-bg border border-border-custom text-white pr-10 pl-4 py-3 rounded-xl focus:outline-none focus:border-accent-blue transition-all"
-                      placeholder="••••••••"
-                    />
+                <div className="madrasati-card overflow-hidden mb-8">
+                  <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-700">إدارة أعضاء اللجنة</h3>
+                    <button 
+                      onClick={handleAddMember}
+                      className="flex items-center gap-2 bg-madrasati-green text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-700 transition-all shadow-md active:scale-95"
+                    >
+                      <Plus size={18} />
+                      إضافة عضو جديد
+                    </button>
+                  </div>
+                  <div className="p-8 space-y-6">
+                    {members.length === 0 ? (
+                      <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                        <Users size={32} className="mx-auto text-slate-300 mb-3" />
+                        <p className="text-sm text-slate-400 font-bold">لا يوجد أعضاء مضافين حالياً</p>
+                        <p className="text-[10px] text-slate-400 mt-1">اضغط على "إضافة عضو جديد" للبدء</p>
+                      </div>
+                    ) : (
+                      members.map((member, idx) => (
+                        <div key={member.docId || idx} className="p-6 border border-slate-100 rounded-2xl bg-slate-50/50 relative group">
+                          <button 
+                            onClick={() => handleDeleteMember(member.docId)}
+                            className="absolute top-4 left-4 text-slate-300 hover:text-rose-500 transition-colors"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase">الاسم</label>
+                              <input 
+                                type="text" 
+                                value={member.role}
+                                onChange={(e) => handleUpdateMember(idx, 'role', e.target.value)}
+                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none font-bold"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase">المسمى في اللجنة</label>
+                              <input 
+                                type="text" 
+                                value={member.title}
+                                onChange={(e) => handleUpdateMember(idx, 'title', e.target.value)}
+                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none font-bold text-madrasati-green"
+                              />
+                            </div>
+                            <div className="md:col-span-2 space-y-2">
+                              <label className="text-[10px] font-bold text-slate-400 uppercase">وصف المهام</label>
+                              <textarea 
+                                value={member.description}
+                                onChange={(e) => handleUpdateMember(idx, 'description', e.target.value)}
+                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-sm min-h-[80px]"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end">
+                    <button 
+                      onClick={handleSaveMembers}
+                      className="bg-madrasati-green text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
+                    >
+                      حفظ ومعاينة الأعضاء
+                    </button>
                   </div>
                 </div>
 
-                {authError && (
-                  <div className="p-3 bg-accent-red/10 border border-accent-red/30 rounded text-accent-red text-[10px] text-center">
-                    {authError}
+                <div className="madrasati-card overflow-hidden mb-8">
+                  <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-700">مركز رفع الملفات</h3>
                   </div>
-                )}
+                  <div className="p-8">
+                    <div className="border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center hover:border-madrasati-green hover:bg-emerald-50/30 transition-all group relative">
+                      <input 
+                        type="file" 
+                        onChange={handleFileUpload}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                      />
+                      <div className="relative z-0">
+                        <div className="w-20 h-20 bg-madrasati-green/10 text-madrasati-green rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                          <UploadCloud size={40} />
+                        </div>
+                        <h4 className="text-lg font-bold text-madrasati-dark mb-2">اسحب الملفات هنا أو انقر للرفع</h4>
+                        <p className="text-sm text-slate-400">PDF, DOCX, XLSX (الحد الأقصى 10 ميجابايت)</p>
+                      </div>
+                    </div>
 
-                <button 
-                  type="submit"
-                  disabled={authLoading}
-                  className="w-full bg-accent-blue hover:bg-accent-blue/80 text-white py-4 rounded-xl font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {authLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {authMode === 'login' ? 'دخول' : 'تسجيل'}
-                </button>
-              </form>
+                    <div className="mt-8 space-y-4">
+                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">الملفات المرفوعة حديثاً</h4>
+                      {attachments.slice(0, 5).map((file) => (
+                        <div key={file.id} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-xl">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-slate-50 text-slate-400 rounded-lg">
+                              <FileIcon size={16} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-madrasati-dark">{file.name}</p>
+                              <p className="text-[10px] text-slate-400">{file.size} • {file.date}</p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => handleDeleteAttachment(file.docId || file.id)}
+                            className="text-slate-300 hover:text-rose-500 transition-colors"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
 
-              <div className="mt-8 pt-6 border-t border-border-custom text-center">
-                <p className="text-text-muted text-xs">
-                  {authMode === 'login' ? 'ليس لديك حساب؟' : 'لديك حساب بالفعل؟'}
-                  <button 
-                    onClick={() => setAuthMode(authMode === 'login' ? 'signup' : 'login')}
-                    className="mr-2 text-accent-blue hover:underline font-bold"
-                  >
-                    {authMode === 'login' ? 'إنشاء حساب' : 'سجل دخولك'}
-                  </button>
-                </p>
+                <div className="madrasati-card overflow-hidden mb-8">
+                  <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-700">إدارة إحصائيات المدرسة</h3>
+                  </div>
+                  <div className="p-8 space-y-10">
+                    {!schoolStats ? (
+                      <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                        <BarChart3 size={48} className="mb-4 opacity-20" />
+                        <p className="font-bold">جاري تحميل الإحصائيات...</p>
+                      </div>
+                    ) : (
+                      (Object.entries(schoolStats) as [string, any[]][]).map(([category, stats]) => (
+                        <div key={category} className="space-y-4">
+                          <div className="flex items-center justify-between border-r-4 border-madrasati-green pr-3">
+                            <h4 className="text-sm font-black text-madrasati-green uppercase tracking-widest">
+                              {category === 'general' ? 'البيانات العامة' : 
+                               category === 'classes' ? 'الفصول والطلاب' : 
+                               category === 'staff' ? 'الهيئة التعليمية والإدارية' : 'المبنى والمرافق'}
+                            </h4>
+                            <button 
+                              onClick={() => handleAddStatItem(category)}
+                              className="p-1.5 bg-madrasati-green/10 text-madrasati-green rounded-lg hover:bg-madrasati-green hover:text-white transition-all"
+                              title="إضافة بيان جديد"
+                            >
+                              <Plus size={14} />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {stats.map((stat, idx) => (
+                              <div key={idx} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 group relative">
+                                <button 
+                                  onClick={() => handleDeleteStatItem(category, idx)}
+                                  className="absolute -top-2 -left-2 w-6 h-6 bg-rose-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-sm z-10"
+                                  title="حذف البيان"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                                <div className="p-2 bg-white rounded-lg text-slate-400">
+                                  <stat.icon size={16} />
+                                </div>
+                                <div className="flex-1 grid grid-cols-2 gap-2">
+                                  <div>
+                                    <p className="text-[8px] font-bold text-slate-400 uppercase mb-0.5">العنوان</p>
+                                    <input 
+                                      type="text" 
+                                      value={stat.label}
+                                      onChange={(e) => handleUpdateStat(category, idx, 'label', e.target.value)}
+                                      className="w-full bg-transparent border-none p-0 text-[10px] font-bold text-slate-500 focus:ring-0 outline-none"
+                                    />
+                                  </div>
+                                  <div>
+                                    <p className="text-[8px] font-bold text-slate-400 uppercase mb-0.5">القيمة</p>
+                                    <input 
+                                      type="text" 
+                                      value={stat.value}
+                                      onChange={(e) => handleUpdateStat(category, idx, 'value', e.target.value)}
+                                      className="w-full bg-transparent border-none p-0 text-xs font-black text-madrasati-dark focus:ring-0 outline-none"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex justify-end pt-2">
+                            <button 
+                              onClick={() => handleSaveStats(category)}
+                              className="text-[10px] font-bold bg-madrasati-green/10 text-madrasati-green px-3 py-1.5 rounded-lg hover:bg-madrasati-green hover:text-white transition-all"
+                            >
+                              حفظ {category === 'general' ? 'البيانات العامة' : category === 'classes' ? 'الفصول' : category === 'staff' ? 'المنسوبين' : 'المرافق'}
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end">
+                    <button 
+                      onClick={() => setActiveTab('stats')}
+                      className="bg-madrasati-green text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
+                    >
+                      حفظ ومعاينة الإحصائيات
+                    </button>
+                  </div>
+                </div>
+
+                <div className="madrasati-card overflow-hidden mb-8">
+                  <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                    <h3 className="font-bold text-slate-700">إدارة الأهداف التشغيلية</h3>
+                    <button 
+                      onClick={handleAddGoal}
+                      className="flex items-center gap-2 bg-madrasati-green text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-700 transition-all"
+                    >
+                      <Plus size={16} />
+                      إضافة هدف جديد
+                    </button>
+                  </div>
+                  <div className="p-8 space-y-12">
+                    {operationalGoals.map((goal) => (
+                      <div key={goal.id} className="p-6 border border-slate-100 rounded-2xl bg-slate-50/50 space-y-6 relative group">
+                        <button 
+                          onClick={() => handleDeleteGoal(goal.docId || goal.id)}
+                          className="absolute top-4 left-4 text-slate-300 hover:text-rose-500 transition-colors"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+
+                        <div className="grid grid-cols-1 gap-4">
+                          <label className="text-xs font-bold text-slate-400 uppercase">الهدف الرئيسي</label>
+                          <input 
+                            type="text" 
+                            value={goal.mainGoal}
+                            onChange={(e) => handleUpdateGoal(goal.id, 'mainGoal', e.target.value)}
+                            className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-madrasati-green outline-none font-bold"
+                          />
+                        </div>
+
+                        <div className="space-y-3">
+                          <label className="text-xs font-bold text-slate-400 uppercase flex justify-between">
+                            الأهداف التابعة
+                            <button 
+                              onClick={() => handleAddSubGoal(goal.id)}
+                              className="text-madrasati-green hover:underline flex items-center gap-1"
+                            >
+                              <PlusCircle size={12} />
+                              إضافة هدف تابع
+                            </button>
+                          </label>
+                          {goal.subGoals.map((sg: any, idx: number) => (
+                            <div key={idx} className="space-y-3 p-4 bg-white border border-slate-200 rounded-xl relative group/sub">
+                              <button 
+                                onClick={() => handleDeleteSubGoal(goal.id, idx)}
+                                className="absolute top-2 left-2 text-slate-300 hover:text-rose-500 opacity-0 group-hover/sub:opacity-100 transition-all"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                              
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-slate-400 uppercase">نص الهدف التابع</label>
+                                <input 
+                                  type="text" 
+                                  value={typeof sg === 'string' ? sg : sg.text}
+                                  onChange={(e) => handleUpdateSubGoal(goal.id, idx, 'text', e.target.value)}
+                                  placeholder="أدخل نص الهدف التابع..."
+                                  className="w-full px-4 py-2 bg-slate-50 border border-slate-100 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-sm font-bold"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-bold text-slate-400 uppercase">خط الأساس</label>
+                                  <input 
+                                    type="number" 
+                                    step="0.01"
+                                    value={sg.baseline || 0}
+                                    onChange={(e) => handleUpdateSubGoal(goal.id, idx, 'baseline', parseFloat(e.target.value) || 0)}
+                                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-center text-xs font-bold"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-bold text-slate-400 uppercase">المستهدف</label>
+                                  <input 
+                                    type="number" 
+                                    step="0.01"
+                                    value={sg.target || 0}
+                                    onChange={(e) => handleUpdateSubGoal(goal.id, idx, 'target', parseFloat(e.target.value) || 0)}
+                                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-center text-xs font-bold"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-bold text-slate-400 uppercase">التغير</label>
+                                  <input 
+                                    type="number" 
+                                    step="0.01"
+                                    value={sg.change || 0}
+                                    onChange={(e) => handleUpdateSubGoal(goal.id, idx, 'change', parseFloat(e.target.value) || 0)}
+                                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg focus:ring-2 focus:ring-madrasati-green outline-none text-center text-xs font-bold"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end">
+                    <button 
+                      onClick={handleSaveGoals}
+                      className="bg-madrasati-green text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
+                    >
+                      حفظ ومعاينة النتائج
+                    </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+            {activeTab === 'tasks' && (
+              <motion.div
+                key="tasks"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="max-w-3xl mx-auto"
+              >
+                <div className="madrasati-card overflow-hidden">
+                  <div className="bg-madrasati-dark p-6 text-white flex items-center gap-4">
+                    <div className="p-2 bg-white/10 rounded-lg">
+                      <ClipboardList size={24} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold">مهام اللجنة</h3>
+                      <p className="text-white/50 text-[10px]">قائمة المهام والمسؤوليات المعتمدة</p>
+                    </div>
+                  </div>
+                  <div className="p-6 space-y-3">
+                    {tasks.map((task, i) => (
+                      <div key={i} className="flex items-center gap-4 p-4 bg-white border border-slate-100 rounded-lg hover:bg-slate-50 transition-colors group">
+                        <div className="w-8 h-8 rounded bg-madrasati-green/10 text-madrasati-green flex items-center justify-center font-bold text-sm">
+                          {i + 1}
+                        </div>
+                        <span className="text-sm font-medium text-slate-700">{task}</span>
+                        <ChevronLeft size={16} className="mr-auto text-slate-300 group-hover:text-madrasati-green" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </main>
+
+      {/* Mobile Nav - Madrasati Style */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-2 flex items-center justify-around z-[60] shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex flex-col items-center gap-1 p-2 ${
+              activeTab === tab.id ? 'text-madrasati-green' : 'text-slate-400'
+            }`}
+          >
+            <tab.icon size={20} />
+            <span className="text-[10px] font-bold">{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 50 }}
+            className={`fixed bottom-20 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3 font-bold text-white ${
+              toast.type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'
+            }`}
+          >
+            {toast.type === 'success' ? <CheckCircle2 size={20} /> : <Info size={20} />}
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Clear Data Confirmation Modal */}
+      <AnimatePresence>
+        {showClearConfirm && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl border border-rose-100"
+            >
+              <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Trash2 size={32} />
               </div>
-            </div>
+              <h3 className="text-xl font-black text-center text-slate-800 mb-2">تأكيد مسح كافة البيانات</h3>
+              <p className="text-slate-500 text-center text-sm mb-8 leading-relaxed">
+                هل أنت متأكد من مسح كافة البيانات؟ لا يمكن التراجع عن هذه الخطوة وسيتم إعادة تهيئة الموقع.
+              </p>
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setShowClearConfirm(false)}
+                  className="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition-all"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={executeClearAllData}
+                  className="flex-1 py-3 bg-rose-600 text-white rounded-xl font-bold hover:bg-rose-700 transition-all shadow-lg shadow-rose-200"
+                >
+                  نعم، امسح الكل
+                </button>
+              </div>
+            </motion.div>
           </div>
         )}
-      </main>
+      </AnimatePresence>
     </div>
   );
 }

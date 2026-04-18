@@ -1,21 +1,40 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #0a0b0e;
-  --color-surface: #16181c;
-  --color-border-custom: #2a2e33;
-  --color-accent-green: #00ffa3;
-  --color-accent-red: #ff3b3b;
-  --color-accent-blue: #3b82f6;
-  --color-text-main: #e0e0e0;
-  --color-text-muted: #8a8d91;
-  
-  --font-sans: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --font-sans: "Cairo", ui-sans-serif, system-ui, sans-serif;
+  --color-madrasati-green: #1ea297;
+  --color-madrasati-dark: #2b3d4f;
+  --color-madrasati-light: #f8f9fa;
+  --color-madrasati-orange: #f39c12;
 }
 
 @layer base {
   body {
-    @apply bg-bg text-text-main antialiased selection:bg-accent-blue/30;
+    @apply text-madrasati-dark antialiased;
   }
+}
+
+.madrasati-card {
+  @apply bg-white border border-slate-200 rounded-lg shadow-sm hover:shadow-md transition-shadow;
+}
+
+.madrasati-btn-primary {
+  @apply bg-madrasati-green text-white px-6 py-2 rounded-md font-bold hover:bg-[#168b82] transition-colors;
+}
+
+.madrasati-sidebar-item {
+  @apply flex items-center gap-3 px-4 py-3 text-slate-600 hover:bg-slate-50 border-r-4 border-transparent transition-all;
+}
+
+.madrasati-sidebar-item-active {
+  @apply bg-slate-100 text-madrasati-green border-madrasati-green font-bold;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
 }
