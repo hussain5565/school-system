@@ -688,15 +688,15 @@ export default function App() {
             {/* Status Labels */}
             {segments.map((seg, i) => {
               const midAngle = ((seg.start + seg.end) / 2 / 100) * 180 - 180;
-              const labelPos = polarToCartesian(centerX, centerY, radius - 45, midAngle);
+              const labelPos = polarToCartesian(centerX, centerY, radius, midAngle);
               return (
                 <text
                   key={i}
                   x={labelPos.x}
                   y={labelPos.y}
-                  fill={normalizedValue >= seg.start && normalizedValue <= seg.end ? status.hex : "#cbd5e1"}
-                  fontSize="7"
-                  fontWeight="bold"
+                  fill={normalizedValue >= seg.start ? "white" : "#cbd5e1"}
+                  fontSize="6"
+                  fontWeight="black"
                   textAnchor="middle"
                   dominantBaseline="middle"
                   className="transition-colors duration-500"
@@ -950,14 +950,16 @@ export default function App() {
         .from('uploads')
         .getPublicUrl(filePath);
 
-      const { error } = await supabase.from('excellence_reports').insert({
+      const newReport = {
         name,
         password,
         date: new Date().toISOString().split('T')[0],
         url: publicUrl,
         file_path: filePath
-      });
+      };
+      const { data, error } = await supabase.from('excellence_reports').insert(newReport).select().single();
       if (error) throw error;
+      if (data) setReports(prev => [...prev, { ...data, docId: data.id }]);
       setToast({ message: 'تمت إضافة التقرير بنجاح', type: 'success' });
     } catch (error) {
       handleSupabaseError(error, OperationType.CREATE, 'excellence_reports');
@@ -2037,34 +2039,6 @@ export default function App() {
                             ))
                           )}
                         </div>
-                      </div>
-                    </div>
-
-                    <div className="madrasati-card overflow-hidden mb-8">
-                      <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                        <h3 className="font-bold text-slate-700">إدارة البيانات والنظام</h3>
-                      </div>
-                      <div className="p-8 flex flex-wrap gap-4">
-                        <button 
-                          onClick={async () => {
-                            setToast({ message: 'جاري استعادة البيانات الافتراضية...', type: 'success' });
-                            await initializeData();
-                            setToast({ message: 'تمت استعادة البيانات بنجاح', type: 'success' });
-                            setTimeout(() => window.location.reload(), 1000);
-                          }}
-                          className="flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-100"
-                        >
-                          <RefreshCw size={20} />
-                          استعادة البيانات الافتراضية
-                        </button>
-
-                        <button 
-                          onClick={handleClearAllData}
-                          className="flex items-center gap-2 px-6 py-3 bg-rose-500 text-white rounded-xl font-bold hover:bg-rose-600 transition-all shadow-lg shadow-rose-100"
-                        >
-                          <Trash2 size={20} />
-                          مسح كافة البيانات
-                        </button>
                       </div>
                     </div>
 
