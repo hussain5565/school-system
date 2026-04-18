@@ -841,8 +841,16 @@ export default function App() {
   // Helper for real upload progress
   const uploadWithProgress = (bucket: string, path: string, file: File, onProgress: (progress: number) => void): Promise<{ data: any, error: any }> => {
     return new Promise((resolve) => {
+      const rawUrl = import.meta.env.VITE_SUPABASE_URL || '';
+      const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+      
+      if (!rawUrl || rawUrl.includes('placeholder') || !rawKey || rawKey.includes('placeholder')) {
+        resolve({ data: null, error: { message: 'إعدادات Supabase غير مكتملة. يرجى إضافة المفاتيح المطلوبة في الإعدادات.' } });
+        return;
+      }
+      
       const xhr = new XMLHttpRequest();
-      const baseUrl = import.meta.env.VITE_SUPABASE_URL.replace(/\/$/, '');
+      const baseUrl = rawUrl.replace(/\/$/, '');
       const url = `${baseUrl}/storage/v1/object/${bucket}/${path}`;
       
       xhr.upload.onprogress = (event) => {
@@ -876,8 +884,8 @@ export default function App() {
       };
       
       xhr.open('POST', url);
-      xhr.setRequestHeader('Authorization', `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`);
-      xhr.setRequestHeader('apikey', import.meta.env.VITE_SUPABASE_ANON_KEY);
+      xhr.setRequestHeader('Authorization', `Bearer ${rawKey}`);
+      xhr.setRequestHeader('apikey', rawKey);
       // Removed Content-Type here because with XHR and File it might be better to let browser decide
       // Or set it explicitly if needed
       if (file.type) {
