@@ -841,8 +841,12 @@ export default function App() {
   // Helper for real upload progress
   const uploadWithProgress = (bucket: string, path: string, file: File, onProgress: (progress: number) => void): Promise<{ data: any, error: any }> => {
     return new Promise((resolve) => {
-      const rawUrl = import.meta.env.VITE_SUPABASE_URL || '';
-      const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+      // User provided fallbacks
+      const fallbackUrl = 'https://haozznyisdztjlgxxhau.supabase.co';
+      const fallbackKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhhb3p6bnlpc2R6dGpsZ3h4aGF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwOTU1MzEsImV4cCI6MjA5MTY3MTUzMX0.soPaFZFKEEhvuwq4nZDSnvyxLc1nQEJVeIiNH7JGfP0';
+
+      const rawUrl = import.meta.env.VITE_SUPABASE_URL || fallbackUrl;
+      const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY || fallbackKey;
       
       if (!rawUrl || rawUrl.includes('placeholder') || !rawKey || rawKey.includes('placeholder')) {
         resolve({ data: null, error: { message: 'إعدادات Supabase غير مكتملة. يرجى إضافة المفاتيح المطلوبة في الإعدادات.' } });
