@@ -40,7 +40,7 @@ import {
   FileText,
   Download,
   UploadCloud,
-  File as FileIcon,
+  File,
   FolderOpen,
   LogOut,
   RefreshCw
@@ -688,19 +688,18 @@ export default function App() {
             {/* Status Labels */}
             {segments.map((seg, i) => {
               const midAngle = ((seg.start + seg.end) / 2 / 100) * 180 - 180;
-              const labelPos = polarToCartesian(centerX, centerY, radius, midAngle);
+              const labelPos = polarToCartesian(centerX, centerY, radius - 45, midAngle);
               return (
                 <text
                   key={i}
                   x={labelPos.x}
                   y={labelPos.y}
-                  fill="white"
+                  fill={normalizedValue >= seg.start && normalizedValue <= seg.end ? status.hex : "#cbd5e1"}
                   fontSize="7"
-                  fontWeight="black"
+                  fontWeight="bold"
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  className="transition-colors duration-500 drop-shadow-md"
-                  style={{ pointerEvents: 'none' }}
+                  className="transition-colors duration-500"
                 >
                   {seg.label}
                 </text>
@@ -709,43 +708,6 @@ export default function App() {
 
             {/* Decorative Center */}
             <circle cx={centerX} cy={centerY} r={20} fill="#f8fafc" />
-            
-            {/* Indicator Needle */}
-            <motion.g
-              initial={{ rotate: -180 }}
-              animate={{ rotate: (value / 100) * 180 - 180 }}
-              transition={{ type: "spring", damping: 15, stiffness: 60 }}
-              style={{ originX: `${centerX}px`, originY: `${centerY}px` }}
-            >
-              {/* Outer Glow */}
-              <circle cx={centerX} cy={centerY} r={12} fill={status.color} className="opacity-20 blur-[4px]" />
-              
-              {/* Arm Shadow */}
-              <line 
-                x1={centerX} y1={centerY} 
-                x2={centerX + (radius - 15)} y2={centerY} 
-                stroke="black" strokeWidth="6" strokeLinecap="round" 
-                className="opacity-10"
-                style={{ transform: 'translate(2px, 2px)' }}
-              />
-              
-              {/* Main Arm */}
-              <line 
-                x1={centerX} y1={centerY} 
-                x2={centerX + (radius - 15)} y2={centerY} 
-                stroke={status.color} strokeWidth="5" strokeLinecap="round" 
-                className="drop-shadow-sm"
-              />
-              
-              {/* Tip Pivot */}
-              <circle cx={centerX + (radius - 15)} cy={centerY} r={4} fill={status.color} />
-              <circle cx={centerX + (radius - 15)} cy={centerY} r={2} fill="white" />
-              
-              {/* Base Pivot */}
-              <circle cx={centerX} cy={centerY} r={8} fill={status.color} className="drop-shadow-md" />
-              <circle cx={centerX} cy={centerY} r={4} fill="#0b2633" />
-            </motion.g>
-
             <text
               x={centerX}
               y={centerY - 5}
@@ -916,12 +878,10 @@ export default function App() {
         }
         
         setToast({ message: 'تم رفع الملف بنجاح', type: 'success' });
-      } catch (error: any) {
+      } catch (error) {
         console.error("Upload error:", error);
-        setToast({ 
-          message: `خطأ في رفع الملف: ${error?.message || 'تأكد من وجود الجداول في قاعدة بالبيانات'}`, 
-          type: 'error' 
-        });
+        setToast({ message: 'فشل رفع الملف', type: 'error' });
+        handleSupabaseError(error, OperationType.CREATE, 'excellence_attachments');
       }
     }
   };
@@ -998,20 +958,9 @@ export default function App() {
         file_path: filePath
       });
       if (error) throw error;
-      
-      // Force refresh data
-      const { data: updatedReports, error: fetchError } = await supabase.from('excellence_reports').select('*');
-      if (!fetchError && updatedReports) {
-        setReports(updatedReports.map(d => ({ ...d, docId: d.id })));
-      }
-
       setToast({ message: 'تمت إضافة التقرير بنجاح', type: 'success' });
-    } catch (error: any) {
-      console.error(error);
-      setToast({ 
-        message: `خطأ في إضافة التقرير: ${error?.message || 'تأكد من وجود الجداول في قاعدة البيانات'}`, 
-        type: 'error' 
-      });
+    } catch (error) {
+      handleSupabaseError(error, OperationType.CREATE, 'excellence_reports');
     }
   };
 
@@ -1339,15 +1288,8 @@ export default function App() {
     }
   };
 
-  const isPlaceholder = supabase.auth.getSession === undefined || (import.meta.env.VITE_SUPABASE_URL?.includes('placeholder'));
-
   return (
-    <div className="min-h-screen bg-[#f8f9fa] text-madrasati-dark font-['Cairo'] pb-20 lg:pb-0">
-      {isPlaceholder && (
-        <div className="fixed top-16 left-0 right-0 z-[55] bg-red-600 text-white py-2 px-4 text-center font-bold text-sm shadow-xl animate-pulse">
-           تنبيه: الموقع لم يتم ربطه بقاعدة البيانات بشكل صحيح. يرجى مراجعة إعدادات المنصة (Settings).
-        </div>
-      )}
+    <div className="min-h-screen bg-[#f8f9fa] text-madrasati-dark font-['Cairo']">
       {/* Top Header - Madrasati Style */}
       <header className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-[60] flex items-center justify-between px-6 shadow-sm">
         <div className="flex items-center gap-4">
@@ -2099,6 +2041,34 @@ export default function App() {
                     </div>
 
                     <div className="madrasati-card overflow-hidden mb-8">
+                      <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                        <h3 className="font-bold text-slate-700">إدارة البيانات والنظام</h3>
+                      </div>
+                      <div className="p-8 flex flex-wrap gap-4">
+                        <button 
+                          onClick={async () => {
+                            setToast({ message: 'جاري استعادة البيانات الافتراضية...', type: 'success' });
+                            await initializeData();
+                            setToast({ message: 'تمت استعادة البيانات بنجاح', type: 'success' });
+                            setTimeout(() => window.location.reload(), 1000);
+                          }}
+                          className="flex items-center gap-2 px-6 py-3 bg-amber-500 text-white rounded-xl font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-100"
+                        >
+                          <RefreshCw size={20} />
+                          استعادة البيانات الافتراضية
+                        </button>
+
+                        <button 
+                          onClick={handleClearAllData}
+                          className="flex items-center gap-2 px-6 py-3 bg-rose-500 text-white rounded-xl font-bold hover:bg-rose-600 transition-all shadow-lg shadow-rose-100"
+                        >
+                          <Trash2 size={20} />
+                          مسح كافة البيانات
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="madrasati-card overflow-hidden mb-8">
                       <div className="p-6 bg-slate-50 border-b border-slate-100">
                         <h3 className="font-bold text-slate-700">إعدادات الهيكل التنظيمي</h3>
                       </div>
@@ -2544,7 +2514,7 @@ export default function App() {
                         <div key={file.id} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-xl">
                           <div className="flex items-center gap-3">
                             <div className="p-2 bg-slate-50 text-slate-400 rounded-lg">
-                              <FileIcon size={16} />
+                              <File size={16} />
                             </div>
                             <div>
                               <p className="text-sm font-bold text-madrasati-dark">{file.name}</p>
