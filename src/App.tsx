@@ -1339,8 +1339,15 @@ export default function App() {
     }
   };
 
+  const isPlaceholder = supabase.auth.getSession === undefined || (import.meta.env.VITE_SUPABASE_URL?.includes('placeholder'));
+
   return (
-    <div className="min-h-screen bg-[#f8f9fa] text-madrasati-dark font-['Cairo']">
+    <div className="min-h-screen bg-[#f8f9fa] text-madrasati-dark font-['Cairo'] pb-20 lg:pb-0">
+      {isPlaceholder && (
+        <div className="fixed top-16 left-0 right-0 z-[55] bg-red-600 text-white py-2 px-4 text-center font-bold text-sm shadow-xl animate-pulse">
+           تنبيه: الموقع لم يتم ربطه بقاعدة البيانات بشكل صحيح. يرجى مراجعة إعدادات المنصة (Settings).
+        </div>
+      )}
       {/* Top Header - Madrasati Style */}
       <header className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-slate-200 z-[60] flex items-center justify-between px-6 shadow-sm">
         <div className="flex items-center gap-4">
