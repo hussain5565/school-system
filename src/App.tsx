@@ -120,18 +120,18 @@ class ErrorBoundary extends React.Component<any, any> {
       } catch (e) {}
       
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 text-center">
-          <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl border border-rose-100">
-            <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-6">
-              <ShieldCheck size={32} />
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 text-center text-madrasati-dark">
+          <div className="max-w-md w-full bg-white p-8 rounded-3xl shadow-xl border border-rose-100">
+            <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+              <ShieldCheck size={40} />
             </div>
-            <h2 className="text-xl font-bold text-slate-800 mb-2">خطأ في النظام</h2>
-            <p className="text-slate-500 mb-6">{message}</p>
+            <h2 className="text-2xl font-black text-slate-800 mb-2">تنبيه بالنظام</h2>
+            <p className="text-slate-500 mb-8 leading-relaxed font-bold">{message}</p>
             <button 
               onClick={() => window.location.reload()}
-              className="w-full py-3 bg-madrasati-green text-white rounded-xl font-bold hover:bg-madrasati-green/90 transition-all"
+              className="w-full py-4 bg-madrasati-green text-white rounded-2xl font-black hover:bg-emerald-700 transition-all shadow-lg active:scale-95"
             >
-              إعادة تحميل الصفحة
+              تحديث الصفحة للمحاولة
             </button>
           </div>
         </div>
@@ -855,7 +855,9 @@ export default function App() {
       
       const xhr = new XMLHttpRequest();
       const baseUrl = rawUrl.replace(/\/$/, '');
-      const url = `${baseUrl}/storage/v1/object/${bucket}/${path}`;
+      // Encode path segments to handle non-ASCII characters (like Arabic) correctly
+      const encodedPath = path.split('/').map(seg => encodeURIComponent(seg)).join('/');
+      const url = `${baseUrl}/storage/v1/object/${bucket}/${encodedPath}`;
       
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) {
@@ -1004,9 +1006,11 @@ export default function App() {
       setToast({ message: 'جاري رفع التقرير...', type: 'success' });
       
       const fileExt = file.name.split('.').pop()?.toLowerCase();
-      // Use name in filename but sanitized
-      const cleanName = name.replace(/[^a-z0-9\u0600-\u06FF]/gi, '_').substring(0, 30);
-      const fileName = `report-${cleanName}-${Date.now()}.${fileExt}`;
+      // Use name in database, but use a clean ASCII-only filename for storage
+      // This avoids "Invalid key" errors with Arabic/special characters
+      const timestamp = Date.now();
+      const randomStr = Math.random().toString(36).substring(2, 7);
+      const fileName = `report-${timestamp}-${randomStr}.${fileExt}`;
       const filePath = `reports/${fileName}`;
 
       const { error: uploadError } = await uploadWithProgress('uploads', filePath, file, setUploadProgress);
