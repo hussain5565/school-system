@@ -844,13 +844,17 @@ export default function App() {
         setToast({ message: 'جاري رفع الملف...', type: 'success' });
         
         // 1. Upload to Supabase Storage
-        const fileExt = file.name.split('.').pop();
+        const fileExt = file.name.split('.').pop()?.toLowerCase();
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
         const filePath = `excellence/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from('uploads')
-          .upload(filePath, file);
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type || (fileExt === 'pdf' ? 'application/pdf' : 'application/octet-stream')
+          });
 
         if (uploadError) throw uploadError;
 
@@ -862,7 +866,7 @@ export default function App() {
         // 3. Save Metadata to Database
         const newAttachment = {
           name: file.name,
-          type: file.name.split('.').pop()?.toUpperCase() || 'FILE',
+          type: fileExt?.toUpperCase() || 'FILE',
           size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
           date: new Date().toISOString().split('T')[0],
           category: "مرفقات جديدة",
@@ -878,10 +882,9 @@ export default function App() {
         }
         
         setToast({ message: 'تم رفع الملف بنجاح', type: 'success' });
-      } catch (error) {
+      } catch (error: any) {
         console.error("Upload error:", error);
-        setToast({ message: 'فشل رفع الملف', type: 'error' });
-        handleSupabaseError(error, OperationType.CREATE, 'excellence_attachments');
+        setToast({ message: `فشل رفع الملف: ${error.message || 'خطأ غير معروف'}`, type: 'error' });
       }
     }
   };
@@ -937,13 +940,21 @@ export default function App() {
     try {
       setToast({ message: 'جاري رفع التقرير...', type: 'success' });
       
-      const fileExt = file.name.split('.').pop();
-      const fileName = `report-${Date.now()}.${fileExt}`;
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      // Use name in filename but sanitized
+      const cleanName = name.replace(/[^a-z0-9\u0600-\u06FF]/gi, '_').substring(0, 30);
+      const fileName = `report-${cleanName}-${Date.now()}.${fileExt}`;
       const filePath = `reports/${fileName}`;
 
+      // Upload with explicit content type and cache control
       const { error: uploadError } = await supabase.storage
         .from('uploads')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || (fileExt === 'pdf' ? 'application/pdf' : 'application/octet-stream')
+        });
+
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
@@ -957,12 +968,22 @@ export default function App() {
         url: publicUrl,
         file_path: filePath
       };
+      
       const { data, error } = await supabase.from('excellence_reports').insert(newReport).select().single();
       if (error) throw error;
-      if (data) setReports(prev => [...prev, { ...data, docId: data.id }]);
+      
+      if (data) {
+        const addedReport = { ...data, docId: data.id };
+        setReports(prev => [...prev, addedReport]);
+      }
+      
       setToast({ message: 'تمت إضافة التقرير بنجاح', type: 'success' });
-    } catch (error) {
-      handleSupabaseError(error, OperationType.CREATE, 'excellence_reports');
+    } catch (error: any) {
+      console.error("Report addition failed:", error);
+      setToast({ 
+        message: `حدث خطأ: ${error.message || 'تعذر إضافة التقرير. تأكد من إعدادات التخزين (Storage).'}`, 
+        type: 'error' 
+      });
     }
   };
 
@@ -1973,6 +1994,7 @@ export default function App() {
                               <input 
                                 id="new-report-file"
                                 type="file" 
+                                accept=".pdf"
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
@@ -1982,7 +2004,7 @@ export default function App() {
                               />
                               <div className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-slate-200 rounded-xl hover:border-madrasati-green hover:bg-emerald-50 transition-all">
                                 <UploadCloud className="text-slate-400" size={20} />
-                                <span id="file-label" className="text-sm font-bold text-slate-500">اختر ملف التقرير</span>
+                                <span id="file-label" className="text-sm font-bold text-slate-500">اختر ملف التقرير (PDF فقط)</span>
                               </div>
                             </div>
                           </div>
