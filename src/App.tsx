@@ -236,6 +236,7 @@ export default function App() {
     attachments: true
   });
 
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -837,26 +838,56 @@ export default function App() {
     }
   };
 
+  // Helper for real upload progress
+  const uploadWithProgress = (bucket: string, path: string, file: File, onProgress: (progress: number) => void): Promise<{ data: any, error: any }> => {
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/${bucket}/${path}`;
+      
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          onProgress(Math.round((event.loaded / event.total) * 100));
+        }
+      };
+      
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve({ data: JSON.parse(xhr.response), error: null });
+        } else {
+          try {
+            const res = JSON.parse(xhr.response);
+            resolve({ data: null, error: res });
+          } catch (e) {
+            resolve({ data: null, error: { message: `Upload failed: ${xhr.status}` } });
+          }
+        }
+      };
+      
+      xhr.onerror = () => resolve({ data: null, error: { message: 'Network error during upload' } });
+      
+      xhr.open('POST', url);
+      xhr.setRequestHeader('Authorization', `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`);
+      xhr.setRequestHeader('apikey', import.meta.env.VITE_SUPABASE_ANON_KEY);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      xhr.setRequestHeader('x-upsert', 'false');
+      xhr.send(file);
+    });
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       try {
+        setUploadProgress(0);
         setToast({ message: 'جاري رفع الملف...', type: 'success' });
         
-        // 1. Upload to Supabase Storage
         const fileExt = file.name.split('.').pop()?.toLowerCase();
         const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
         const filePath = `excellence/${fileName}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from('uploads')
-          .upload(filePath, file, {
-            cacheControl: '3600',
-            upsert: false,
-            contentType: file.type || (fileExt === 'pdf' ? 'application/pdf' : 'application/octet-stream')
-          });
+        const { error: uploadError } = await uploadWithProgress('uploads', filePath, file, setUploadProgress);
 
-        if (uploadError) throw uploadError;
+        if (uploadError) throw typeof uploadError === 'string' ? new Error(uploadError) : uploadError;
 
         // 2. Get Public URL
         const { data: { publicUrl } } = supabase.storage
@@ -882,9 +913,11 @@ export default function App() {
         }
         
         setToast({ message: 'تم رفع الملف بنجاح', type: 'success' });
+        setTimeout(() => setUploadProgress(null), 1000);
       } catch (error: any) {
+        setUploadProgress(null);
         console.error("Upload error:", error);
-        setToast({ message: `فشل رفع الملف: ${error.message || 'خطأ غير معروف'}`, type: 'error' });
+        setToast({ message: `فشل رفع الملف: ${error.message || error.error || 'خطأ غير معروف'}`, type: 'error' });
       }
     }
   };
@@ -938,6 +971,7 @@ export default function App() {
 
   const handleAddReport = async (name: string, password: string, file: File) => {
     try {
+      setUploadProgress(0);
       setToast({ message: 'جاري رفع التقرير...', type: 'success' });
       
       const fileExt = file.name.split('.').pop()?.toLowerCase();
@@ -946,16 +980,9 @@ export default function App() {
       const fileName = `report-${cleanName}-${Date.now()}.${fileExt}`;
       const filePath = `reports/${fileName}`;
 
-      // Upload with explicit content type and cache control
-      const { error: uploadError } = await supabase.storage
-        .from('uploads')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: file.type || (fileExt === 'pdf' ? 'application/pdf' : 'application/octet-stream')
-        });
+      const { error: uploadError } = await uploadWithProgress('uploads', filePath, file, setUploadProgress);
 
-      if (uploadError) throw uploadError;
+      if (uploadError) throw typeof uploadError === 'string' ? new Error(uploadError) : uploadError;
 
       const { data: { publicUrl } } = supabase.storage
         .from('uploads')
@@ -978,10 +1005,12 @@ export default function App() {
       }
       
       setToast({ message: 'تمت إضافة التقرير بنجاح', type: 'success' });
+      setTimeout(() => setUploadProgress(null), 1000);
     } catch (error: any) {
+      setUploadProgress(null);
       console.error("Report addition failed:", error);
       setToast({ 
-        message: `حدث خطأ: ${error.message || 'تعذر إضافة التقرير. تأكد من إعدادات التخزين (Storage).'}`, 
+        message: `حدث خطأ: ${error.message || error.error || 'تعذر إضافة التقرير. تأكد من إعدادات التخزين (Storage).'}`, 
         type: 'error' 
       });
     }
@@ -2829,6 +2858,33 @@ export default function App() {
                 </button>
               </div>
             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Upload Progress Overlay */}
+      <AnimatePresence>
+        {uploadProgress !== null && (
+          <div className="fixed bottom-24 right-6 left-6 md:left-auto md:w-80 bg-white p-5 rounded-2xl shadow-2xl border border-slate-100 z-[120]">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-madrasati-green/10 text-madrasati-green rounded-lg animate-pulse">
+                <UploadCloud size={20} />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-bold text-slate-700">جاري رفع الملف...</span>
+                  <span className="text-xs font-black text-madrasati-green">{uploadProgress}%</span>
+                </div>
+                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${uploadProgress}%` }}
+                    className="h-full bg-madrasati-green"
+                  />
+                </div>
+              </div>
+            </div>
+            <p className="text-[10px] text-slate-400 font-bold text-center">يرجى عدم إغلاق الصفحة حتى اكتمال الرفع</p>
           </div>
         )}
       </AnimatePresence>
