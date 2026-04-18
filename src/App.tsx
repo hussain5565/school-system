@@ -2277,29 +2277,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="madrasati-card overflow-hidden mb-8">
-                      <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                        <h3 className="font-bold text-slate-700">ترتيب الهيكل التنظيمي</h3>
-                        <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full uppercase">تصميم تفاعلي</span>
-                      </div>
-                      <div className="p-8">
-                        <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 mb-6 flex items-center gap-4">
-                          <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-emerald-600">
-                            <Info size={24} />
-                          </div>
-                          <div>
-                            <p className="text-sm font-black text-emerald-800 mb-1">الهيكل التنظيمي أصبح الآن جزءاً تفاعلياً من واجهة التطبيق.</p>
-                            <p className="text-xs text-emerald-600 font-bold">يمكنك رؤية التغييرات فوراً في الصفحة الرئيسية، حيث يتم تحديث البيانات تلقائياً بناءً على سياسة التميز المعتمدة.</p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex flex-col md:flex-row gap-6 items-center">
-                          <div className="flex-1 text-center md:text-right">
-                            <p className="text-slate-500 text-sm font-bold">لإدارة أسماء أعضاء اللجنة والمسميات الوظيفية، يرجى الانتقال إلى تبويب <span className="text-madrasati-green underline">"أعضاء اللجنة"</span> في لوحة التحكّم.</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+
 
 
 
@@ -2375,8 +2353,9 @@ export default function App() {
                                     type="range" 
                                     min="0" 
                                     max="100" 
+                                    step="0.01"
                                     value={ind.progress}
-                                    onChange={(e) => handleUpdateIndicator(ind.id, 'progress', parseInt(e.target.value))}
+                                    onChange={(e) => handleUpdateIndicator(ind.id, 'progress', parseFloat(e.target.value))}
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                   />
                                   <motion.div 
@@ -2387,8 +2366,9 @@ export default function App() {
                                 </div>
                                 <input 
                                   type="number" 
+                                  step="0.01"
                                   value={ind.progress}
-                                  onChange={(e) => handleUpdateIndicator(ind.id, 'progress', parseInt(e.target.value) || 0)}
+                                  onChange={(e) => handleUpdateIndicator(ind.id, 'progress', parseFloat(e.target.value) || 0)}
                                   className="w-16 px-2 py-1 bg-white border border-slate-200 rounded text-center font-bold text-sm"
                                 />
                               </div>
@@ -2440,9 +2420,10 @@ export default function App() {
                           </div>
                           <input 
                             type="number" 
+                            step="0.01"
                             disabled={manualAverageProgress === null}
                             value={manualAverageProgress !== null ? manualAverageProgress : averageProgress}
-                            onChange={(e) => setManualAverageProgress(parseInt(e.target.value) || 0)}
+                            onChange={(e) => setManualAverageProgress(parseFloat(e.target.value) || 0)}
                             className={`w-24 px-3 py-2 bg-white border border-slate-200 rounded-lg text-center font-black text-madrasati-green focus:ring-2 focus:ring-madrasati-green outline-none transition-all ${manualAverageProgress === null ? 'opacity-50 cursor-not-allowed' : ''}`}
                             min="0"
                             max="100"
@@ -2556,8 +2537,9 @@ export default function App() {
                           <div className="flex items-center gap-4">
                             <input 
                               type="number" 
+                              step="0.01"
                               value={ind.progress}
-                              onChange={(e) => handleUpdateProgress(i, parseInt(e.target.value) || 0)}
+                              onChange={(e) => handleUpdateProgress(i, parseFloat(e.target.value) || 0)}
                               className="w-20 px-3 py-2 bg-white border border-slate-200 rounded-lg text-center font-black text-madrasati-green focus:ring-2 focus:ring-madrasati-green outline-none transition-all"
                               min="0"
                               max="100"
@@ -2570,8 +2552,9 @@ export default function App() {
                             type="range" 
                             min="0" 
                             max="100" 
+                            step="0.01"
                             value={ind.progress}
-                            onChange={(e) => handleUpdateProgress(i, parseInt(e.target.value))}
+                            onChange={(e) => handleUpdateProgress(i, parseFloat(e.target.value))}
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                           />
                           <motion.div 
