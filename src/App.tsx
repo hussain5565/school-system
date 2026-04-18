@@ -43,7 +43,8 @@ import {
   File,
   FolderOpen,
   LogOut,
-  RefreshCw
+  RefreshCw,
+  HeartHandshake
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -667,7 +668,7 @@ export default function App() {
             </motion.g>
 
             {/* Ticks and Labels */}
-            {[0, 25, 50, 75, 100].map((tick) => {
+            {[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map((tick) => {
               const angle = (tick / 100) * 180 - 180;
               const pos = polarToCartesian(centerX, centerY, radius + 25, angle);
               return (
@@ -675,13 +676,13 @@ export default function App() {
                   key={tick}
                   x={pos.x}
                   y={pos.y}
-                  fill="#94a3b8"
-                  fontSize="8"
-                  fontWeight="bold"
+                  fill="#64748b"
+                  fontSize="7"
+                  fontWeight="black"
                   textAnchor="middle"
                   dominantBaseline="middle"
                 >
-                  {tick}%
+                  {tick}
                 </text>
               );
             })}
@@ -690,13 +691,14 @@ export default function App() {
             {segments.map((seg, i) => {
               const midAngle = ((seg.start + seg.end) / 2 / 100) * 180 - 180;
               const labelPos = polarToCartesian(centerX, centerY, radius, midAngle);
+              const isActive = normalizedValue >= seg.start;
               return (
                 <text
                   key={i}
                   x={labelPos.x}
                   y={labelPos.y}
-                  fill={normalizedValue >= seg.start ? "white" : "#cbd5e1"}
-                  fontSize="6"
+                  fill={isActive ? (seg.label === 'تميز' ? '#0a2633' : 'white') : '#94a3b8'}
+                  fontSize="6.5"
                   fontWeight="black"
                   textAnchor="middle"
                   dominantBaseline="middle"
@@ -1671,23 +1673,159 @@ export default function App() {
                     </div>
 
                     {/* Organizational Structure Section */}
-                    <div className="madrasati-card p-8 bg-white">
-                      <div className="flex items-center gap-3 mb-6 border-b border-slate-100 pb-4">
-                        <div className="p-2 bg-madrasati-green/10 rounded-lg text-madrasati-green">
-                          <LayoutDashboard size={24} />
+                    <div className="madrasati-card p-4 md:p-10 bg-white overflow-hidden relative">
+                      {/* Artistic Background Elements */}
+                      <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-50 rounded-full blur-[100px] opacity-40 -z-10"></div>
+                      <div className="absolute bottom-0 left-0 w-96 h-96 bg-indigo-50 rounded-full blur-[100px] opacity-40 -z-10"></div>
+                      
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-12 border-b border-slate-100 pb-6">
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 bg-gradient-to-br from-madrasati-green to-emerald-600 rounded-2xl text-white shadow-lg shadow-emerald-200 flex items-center justify-center">
+                            <Users size={32} />
+                          </div>
+                          <div>
+                            <h3 className="text-2xl font-black text-slate-800">الهيكل التنظيمي</h3>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="w-2 h-2 bg-madrasati-green rounded-full"></span>
+                              <p className="text-xs text-slate-400 font-bold uppercase tracking-[0.2em]">Excellence Committee Structure</p>
+                            </div>
+                          </div>
                         </div>
-                        <h3 className="text-xl font-bold">الهيكل التنظيمي</h3>
+                        <div className="bg-slate-50 px-4 py-2 rounded-xl border border-slate-100 hidden md:block">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">العام الدراسي</p>
+                          <p className="text-sm font-black text-slate-700">1447هـ</p>
+                        </div>
                       </div>
-                      <div className="relative aspect-[16/9] bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 group hover:border-madrasati-green hover:bg-emerald-50/30 transition-all cursor-pointer overflow-hidden">
-                        <img 
-                          src={settings.orgStructureUrl} 
-                          alt="الهيكل التنظيمي" 
-                          className="absolute inset-0 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-                          referrerPolicy="no-referrer"
-                        />
-                        {!settings.orgStructureUrl.includes('picsum') && (
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
-                        )}
+                      
+                      <div className="relative py-12 flex flex-col items-center">
+                        {/* THE NEW HIERARCHY STRUCTURE FROM IMAGE */}
+                        
+                        {/* LEVEL 1: PRINCIPAL */}
+                        <div className="relative z-10 mb-12">
+                          <motion.div 
+                            initial={{ opacity: 0, y: -20 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            className="bg-[#0b2633] text-white px-16 py-4 rounded shadow-xl border-b-4 border-emerald-500 w-full max-w-xl text-center relative group"
+                          >
+                            <h4 className="text-2xl font-black">مدير المدرسة</h4>
+                          </motion.div>
+                          
+                          {/* Main Trunk Line */}
+                          <div className="absolute left-1/2 -translate-x-1/2 top-full w-1.5 h-32 bg-emerald-500/40"></div>
+                        </div>
+
+                        {/* LEVEL 2: SECRETARY (Side Branch) */}
+                        <div className="relative z-10 w-full max-w-6xl mb-12">
+                          <div className="flex justify-start items-center relative">
+                            {/* Horizontal Line to Secretary */}
+                            <div className="absolute left-[50%] top-1/2 -translate-y-1/2 w-[20%] h-1 bg-emerald-500/40 hidden lg:block">
+                              <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500/60">
+                                <ArrowRight className="rotate-0" size={16} />
+                              </div>
+                            </div>
+
+                            <motion.div 
+                               initial={{ opacity: 0, x: 50 }}
+                               whileInView={{ opacity: 1, x: 0 }}
+                               viewport={{ once: true }}
+                               className="lg:ml-[70%] bg-[#d1d5db] text-slate-800 px-12 py-4 rounded border border-slate-400 shadow-md min-w-[200px] text-center font-bold text-lg relative z-20"
+                            >
+                              سكرتير
+                            </motion.div>
+                          </div>
+                        </div>
+
+                        {/* LEVEL 3: THE THREE PILLARS */}
+                        <div className="relative z-10 w-full max-w-7xl pt-8 px-4">
+                          {/* Horizontal connecting bar for pillars */}
+                          <div className="absolute top-0 left-[10%] right-[10%] h-1.5 bg-emerald-500/40 rounded-full hidden lg:block">
+                            {/* Vertical connectors to pillars */}
+                            <div className="absolute left-0 top-0 w-1.5 h-8 bg-emerald-500/40"></div>
+                            <div className="absolute left-1/2 -translate-x-1/2 top-0 w-1.5 h-8 bg-emerald-500/40"></div>
+                            <div className="absolute right-0 top-0 w-1.5 h-8 bg-emerald-500/40"></div>
+                          </div>
+
+                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 border-2 border-slate-300 rounded-lg overflow-hidden bg-white shadow-2xl">
+                            {/* COLUMN 1: EDUCATIONAL AFFAIRS */}
+                            <div className="flex flex-col border-r border-slate-300">
+                              <div className="bg-[#e2e8f0] p-4 text-center border-b border-slate-300">
+                                <h5 className="text-xl font-black text-slate-800 uppercase tracking-tight">وكيل الشؤون التعليمية</h5>
+                              </div>
+                              <div className="flex flex-col divide-y divide-slate-200">
+                                {[
+                                  "معلمو المواد الدراسية",
+                                  "معلم التربية الخاصة",
+                                  "معلم الموهوبين",
+                                  "مساعد معلم"
+                                ].map((item, idx) => (
+                                  <div key={idx} className="p-4 text-center font-bold text-slate-700 hover:bg-emerald-50 transition-colors">
+                                    {item}
+                                  </div>
+                                ))}
+                                {/* Empty fillers for balance if needed */}
+                                <div className="p-4 flex-grow bg-slate-50/30"></div>
+                              </div>
+                            </div>
+
+                            {/* COLUMN 2: STUDENT AFFAIRS */}
+                            <div className="flex flex-col border-r border-slate-300 bg-emerald-50/5">
+                              <div className="bg-[#e2e8f0] p-4 text-center border-b border-slate-300">
+                                <h5 className="text-xl font-black text-slate-800 uppercase tracking-tight">وكيل الشؤون الطلابية</h5>
+                              </div>
+                              <div className="flex flex-col divide-y divide-slate-200">
+                                {[
+                                  { text: "المساعد الإداري", sub: "( شؤون الطلاب )", color: "text-madrasati-orange" },
+                                  { text: "رائد النشاط" },
+                                  { text: "الموجه الطلابي" },
+                                  { text: "الموجه الصحي" },
+                                  { text: "مسجل المعلومات" }
+                                ].map((item, idx) => (
+                                  <div key={idx} className="p-4 text-center font-bold text-slate-700 hover:bg-emerald-50 transition-colors">
+                                    {typeof item === 'string' ? item : (
+                                      <div className="flex flex-col items-center">
+                                        <span>{item.text}</span>
+                                        {item.sub && <span className={`text-xs mt-1 ${item.color || 'text-slate-400'}`}>{item.sub}</span>}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* COLUMN 3: SCHOOL AFFAIRS */}
+                            <div className="flex flex-col">
+                              <div className="bg-[#e2e8f0] p-4 text-center border-b border-slate-300">
+                                <h5 className="text-xl font-black text-slate-800 uppercase tracking-tight">وكيل الشؤون المدرسية</h5>
+                              </div>
+                              <div className="flex flex-col divide-y divide-slate-200">
+                                {[
+                                  { text: "المساعد الإداري", sub: "( الخدمات المساندة والجودة )", color: "text-madrasati-orange" },
+                                  { text: "المساعد الإداري", sub: "( تقنية المعلومات )", color: "text-madrasati-orange" },
+                                  { text: "محضر المختبر" },
+                                  { text: "أمين مصادر التعلم" },
+                                  { text: "الحارس" },
+                                  { text: "عامل الخدمات" }
+                                ].map((item, idx) => (
+                                  <div key={idx} className="p-4 text-center font-bold text-slate-700 hover:bg-emerald-50 transition-colors">
+                                    <div className="flex flex-col items-center">
+                                      <span>{item.text}</span>
+                                      {item.sub && <span className={`text-xs mt-1 ${item.color || 'text-slate-400'}`}>{item.sub}</span>}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Visual Legend / Caption */}
+                        <div className="mt-12 px-8 py-3 bg-slate-900/5 backdrop-blur-sm rounded-full border border-slate-200 flex items-center gap-4">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                            <span className="text-[10px] font-black text-slate-600">الهيكل العام للمدرسة</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </>
@@ -2140,77 +2278,45 @@ export default function App() {
                     </div>
 
                     <div className="madrasati-card overflow-hidden mb-8">
-                      <div className="p-6 bg-slate-50 border-b border-slate-100">
-                        <h3 className="font-bold text-slate-700">إعدادات الهيكل التنظيمي</h3>
+                      <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                        <h3 className="font-bold text-slate-700">ترتيب الهيكل التنظيمي</h3>
+                        <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full uppercase">تصميم تفاعلي</span>
                       </div>
                       <div className="p-8">
-                        <div className="flex flex-col md:flex-row gap-6 items-start">
-                          <div className="w-full md:w-1/3 aspect-video bg-slate-100 rounded-xl overflow-hidden border border-slate-200 relative group">
-                            <img 
-                              src={settings.orgStructureUrl} 
-                              alt="Preview" 
-                              className="w-full h-full object-cover"
-                              referrerPolicy="no-referrer"
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <span className="text-white text-[10px] font-bold">معاينة الهيكل</span>
-                            </div>
+                        <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 mb-6 flex items-center gap-4">
+                          <div className="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-emerald-600">
+                            <Info size={24} />
                           </div>
-                          <div className="flex-1 space-y-4 w-full">
-                            <div className="space-y-2">
-                              <label className="text-[10px] font-bold text-slate-400 uppercase">تحديث صورة الهيكل التنظيمي</label>
-                              <div className="flex flex-col gap-3">
-                                <div className="relative group">
-                                  <input 
-                                    type="file" 
-                                    accept="image/*"
-                                    onChange={async (e) => {
-                                      const file = e.target.files?.[0];
-                                      if (file) {
-                                        try {
-                                          setToast({ message: 'جاري رفع صورة الهيكل...', type: 'success' });
-                                          const fileExt = file.name.split('.').pop();
-                                          const fileName = `org-structure-${Date.now()}.${fileExt}`;
-                                          const filePath = `settings/${fileName}`;
-
-                                          const { error: uploadError } = await supabase.storage
-                                            .from('uploads')
-                                            .upload(filePath, file);
-                                          if (uploadError) throw uploadError;
-
-                                          const { data: { publicUrl } } = supabase.storage
-                                            .from('uploads')
-                                            .getPublicUrl(filePath);
-
-                                          const { error: dbError } = await supabase.from('excellence_settings').upsert({ 
-                                            id: 'general', 
-                                            orgStructureUrl: publicUrl 
-                                          });
-                                          if (dbError) throw dbError;
-
-                                          setSettings(prev => ({ ...prev, orgStructureUrl: publicUrl }));
-                                          setToast({ message: 'تم تحديث الهيكل بنجاح', type: 'success' });
-                                        } catch (error) {
-                                          handleSupabaseError(error, OperationType.UPDATE, 'excellence_settings');
-                                        }
-                                      }
-                                    }}
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                                  />
-                                  <div className="flex items-center justify-center gap-2 px-6 py-4 border-2 border-dashed border-slate-200 rounded-xl hover:border-madrasati-green hover:bg-emerald-50 transition-all">
-                                    <UploadCloud className="text-slate-400 group-hover:text-madrasati-green" size={24} />
-                                    <span className="text-sm font-bold text-slate-500 group-hover:text-madrasati-green">اختر صورة جديدة للهيكل</span>
-                                  </div>
-                                </div>
-                              </div>
-                              <p className="text-[10px] text-slate-400">
-                                * ملاحظة: سيتم حفظ الصورة في مساحة التخزين الخاصة بك.
-                              </p>
-                            </div>
+                          <div>
+                            <p className="text-sm font-black text-emerald-800 mb-1">الهيكل التنظيمي أصبح الآن جزءاً تفاعلياً من واجهة التطبيق.</p>
+                            <p className="text-xs text-emerald-600 font-bold">يمكنك رؤية التغييرات فوراً في الصفحة الرئيسية، حيث يتم تحديث البيانات تلقائياً بناءً على سياسة التميز المعتمدة.</p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-col md:flex-row gap-6 items-center">
+                          <div className="flex-1 text-center md:text-right">
+                            <p className="text-slate-500 text-sm font-bold">لإدارة أسماء أعضاء اللجنة والمسميات الوظيفية، يرجى الانتقال إلى تبويب <span className="text-madrasati-green underline">"أعضاء اللجنة"</span> في لوحة التحكّم.</p>
                           </div>
                         </div>
                       </div>
                     </div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
                     <div className="madrasati-card overflow-hidden mb-8">
                       <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
