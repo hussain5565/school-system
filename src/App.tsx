@@ -855,8 +855,15 @@ export default function App() {
       
       const xhr = new XMLHttpRequest();
       const baseUrl = rawUrl.replace(/\/$/, '');
-      // Encode path segments to handle non-ASCII characters (like Arabic) correctly
-      const encodedPath = path.split('/').map(seg => encodeURIComponent(seg)).join('/');
+      
+      // Force path to be valid ASCII to prevent "Invalid key" errors with Arabic filenames
+      // We also encode it just in case, but stripping non-ASCII is the safest bet for Storage keys
+      const safePath = path
+        .split('/')
+        .map(seg => seg.replace(/[^\x00-\x7F]/g, '_')) // Replace non-ASCII with underscore
+        .join('/');
+        
+      const encodedPath = safePath.split('/').map(seg => encodeURIComponent(seg)).join('/');
       const url = `${baseUrl}/storage/v1/object/${bucket}/${encodedPath}`;
       
       xhr.upload.onprogress = (event) => {
@@ -910,7 +917,10 @@ export default function App() {
         setToast({ message: 'جاري رفع الملف...', type: 'success' });
         
         const fileExt = file.name.split('.').pop()?.toLowerCase();
-        const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+        // Use purely ASCII filename for storage to avoid "Invalid key" errors
+        const timestamp = Date.now();
+        const randomStr = Math.random().toString(36).substring(2, 7);
+        const fileName = `${timestamp}-${randomStr}.${fileExt}`;
         const filePath = `excellence/${fileName}`;
 
         const { error: uploadError } = await uploadWithProgress('uploads', filePath, file, setUploadProgress);
